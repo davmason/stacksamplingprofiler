@@ -1,8 +1,16 @@
 
 #include "CorProfiler.h"
 #include "sampler.h"
+#include <thread>
+#include <cwchar>
+#include <cstdio>
+#include <cinttypes>
+#include <locale>
+#include <codecvt>
 
-using std::wstring;
+using std::wstring_convert;
+using std::codecvt_utf8;
+using std::string;
 
 ManualEvent Sampler::s_waitEvent;
 Sampler *Sampler::s_instance = nullptr;
@@ -38,7 +46,7 @@ void Sampler::DoSampling(ICorProfilerInfo10 *pProfInfo, CorProfiler *parent)
 
     while (true)
     {
-        Sleep(100);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         s_waitEvent.Wait();
 
@@ -68,7 +76,7 @@ void Sampler::DoSampling(ICorProfilerInfo10 *pProfInfo, CorProfiler *parent)
         ULONG numReturned;
         while ((hr = threadEnum->Next(1, &threadID, &numReturned)) == S_OK)
         {
-            printf("Starting stack walk for managed thread id=0x%I64x\n", threadID);
+            printf("Starting stack walk for managed thread id=0x%" PRIx64 "\n", (uint64_t)threadID);
 
             hr = pProfInfo->DoStackSnapshot(threadID,
                                             DoStackSnapshotStackSnapShotCallbackWrapper,
@@ -80,15 +88,15 @@ void Sampler::DoSampling(ICorProfilerInfo10 *pProfInfo, CorProfiler *parent)
             {
                 if (hr == E_FAIL)
                 {
-                    printf("Managed thread id=0x%I64x has no managed frames to walk \n", threadID);
+                    printf("Managed thread id=0x%" PRIx64 " has no managed frames to walk \n", (uint64_t)threadID);
                 }
                 else
                 {
-                    printf("DoStackSnapshot for thread id=0x%I64x failed with hr=0x%x \n", threadID, hr);
+                    printf("DoStackSnapshot for thread id=0x%" PRIx64 " failed with hr=0x%x \n", (uint64_t)threadID, hr);
                 }
             }
 
-            printf("Ending stack walk for managed thread id=0x%I64x\n", threadID);
+            printf("Ending stack walk for managed thread id=0x%" PRIx64 "\n", (uint64_t)threadID);
         }
 
         printf("Resuming runtime\n");
@@ -112,13 +120,20 @@ void Sampler::Stop()
 
 HRESULT Sampler::StackSnapshotCallback(FunctionID funcId, UINT_PTR ip, COR_PRF_FRAME_INFO frameInfo, ULONG32 contextSize, BYTE context[], void* clientData)
 {
-    wstring functionName = GetFunctionName(funcId, frameInfo);
-    wprintf(L"    %s (funcId=%I64u)\n", functionName.c_str(), funcId);
+    WSTRING functionName = GetFunctionName(funcId, frameInfo);
 
+#if WIN32
+    wstring_convert<codecvt_utf8<wchar_t>, wchar_t> convert;
+#else // WIN32
+    wstring_convert<codecvt_utf8<char16_t>, char16_t> convert;
+#endif // WIN32
+
+    string printable = convert.to_bytes(functionName);
+    printf("    %s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)funcId);
     return S_OK;
 }
 
-wstring Sampler::GetModuleName(ModuleID modId)
+WSTRING Sampler::GetModuleName(ModuleID modId)
 {
     WCHAR moduleFullName[STRING_LENGTH];
     ULONG nameLength = 0;
@@ -127,7 +142,7 @@ wstring Sampler::GetModuleName(ModuleID modId)
     if (modId == NULL)
     {
         printf("NULL modId passed to GetModuleName\n");
-        return L"Unknown";
+        return WSTR("Unknown");
     }
 
     HRESULT hr = corProfilerInfo->GetModuleInfo(modId,
@@ -139,10 +154,22 @@ wstring Sampler::GetModuleName(ModuleID modId)
     if (FAILED(hr))
     {
         printf("GetModuleInfo failed with hr=0x%x\n", hr);
-        return L"Unknown";
+        return WSTR("Unknown");
     }
 
-    WCHAR *ptr = wcsrchr(moduleFullName, L'\\');
+    WCHAR *ptr = NULL;
+    WCHAR *index = moduleFullName;
+    // Find the last occurence of the \ character
+    while (*index != 0)
+    {
+        if (*index == '\\' || *index == '/')
+        {
+            ptr = index;
+        }
+
+        ++index;
+    }
+
     if (ptr == NULL)
     {
         return moduleFullName;
@@ -150,7 +177,7 @@ wstring Sampler::GetModuleName(ModuleID modId)
     // Skip the last \ in the string
     ++ptr;
 
-    wstring moduleName;
+    WSTRING moduleName;
     while (*ptr != 0)
     {
         moduleName += *ptr;
@@ -161,7 +188,7 @@ wstring Sampler::GetModuleName(ModuleID modId)
 }
 
 
-wstring Sampler::GetClassName(ClassID classId)
+WSTRING Sampler::GetClassName(ClassID classId)
 {
     ModuleID modId;
     mdTypeDef classToken;
@@ -173,7 +200,7 @@ wstring Sampler::GetClassName(ClassID classId)
     if (classId == NULL)
     {
         printf("NULL classId passed to GetClassName\n");
-        return L"Unknown";
+        return WSTR("Unknown");
     }
 
     hr = corProfilerInfo->GetClassIDInfo2(classId,
@@ -186,22 +213,22 @@ wstring Sampler::GetClassName(ClassID classId)
     if (CORPROF_E_CLASSID_IS_ARRAY == hr)
     {
         // We have a ClassID of an array.
-        return L"ArrayClass";
+        return WSTR("ArrayClass");
     }
     else if (CORPROF_E_CLASSID_IS_COMPOSITE == hr)
     {
         // We have a composite class
-        return L"CompositeClass";
+        return WSTR("CompositeClass");
     }
     else if (CORPROF_E_DATAINCOMPLETE == hr)
     {
         // type-loading is not yet complete. Cannot do anything about it.
-        return L"DataIncomplete";
+        return WSTR("DataIncomplete");
     }
     else if (FAILED(hr))
     {
-        printf("GetClassIDInfo returned hr=0x%x for classID=0x%llx\n", hr, classId);
-        return L"Unknown";
+        printf("GetClassIDInfo returned hr=0x%x for classID=0x%" PRIx64 "\n", hr, (uint64_t)classId);
+        return WSTR("Unknown");
     }
 
     COMPtrHolder<IMetaDataImport> pMDImport;
@@ -212,7 +239,7 @@ wstring Sampler::GetClassName(ClassID classId)
     if (FAILED(hr))
     {
         printf("GetModuleMetaData failed with hr=0x%x\n", hr);
-        return L"Unknown";
+        return WSTR("Unknown");
     }
 
 
@@ -227,16 +254,16 @@ wstring Sampler::GetClassName(ClassID classId)
     if (FAILED(hr))
     {
         printf("GetTypeDefProps failed with hr=0x%x\n", hr);
-        return L"Unknown";
+        return WSTR("Unknown");
     }
 
-    wstring name = GetModuleName(modId);
-    name += L".";
+    WSTRING name = GetModuleName(modId);
+    name += WSTR(" ");
     name += wName;
 
     if (nTypeArgs > 0)
     {
-        name += L"<";
+        name += WSTR("<");
     }
 
     for(ULONG32 i = 0; i < nTypeArgs; i++)
@@ -245,23 +272,23 @@ wstring Sampler::GetClassName(ClassID classId)
 
         if ((i + 1) != nTypeArgs)
         {
-            name += L", ";
+            name += WSTR(", ");
         }
     }
 
     if (nTypeArgs > 0)
     {
-        name += L">";
+        name += WSTR(">");
     }
 
     return name;
 }
 
-wstring Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO frameInfo)
+WSTRING Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO frameInfo)
 {
     if (funcID == NULL)
     {
-        return L"Unknown_Native_Function";
+        return WSTR("Unknown_Native_Function");
     }
 
     ClassID classId = NULL;
@@ -309,7 +336,7 @@ wstring Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO fra
         printf("GetMethodProps failed with hr=0x%x\n", hr);
     }
 
-    wstring name;
+    WSTRING name;
 
     // If the ClassID returned from GetFunctionInfo is 0, then the function is a shared generic function.
     if (classId != 0)
@@ -318,17 +345,17 @@ wstring Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO fra
     }
     else
     {
-        name += L"SharedGenericFunction";
+        name += WSTR("SharedGenericFunction");
     }
 
-    name += L"::";
+    name += WSTR("::");
 
     name += funcName;
 
     // Fill in the type parameters of the generic method
     if (nTypeArgs > 0)
     {
-        name += L"<";
+        name += WSTR("<");
     }
 
     for(ULONG32 i = 0; i < nTypeArgs; i++)
@@ -337,13 +364,13 @@ wstring Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO fra
 
         if ((i + 1) != nTypeArgs)
         {
-            name += L", ";
+            name += WSTR(", ");
         }
     }
 
     if (nTypeArgs > 0)
     {
-        name += L">";
+        name += WSTR(">");
     }
 
     return name;

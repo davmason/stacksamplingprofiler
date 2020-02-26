@@ -49,7 +49,7 @@ if not exist bin\ (
 
 pushd bin
 
-cmake -G "Visual Studio 16 2019" ..\ 
+cmake -G "Visual Studio 16 2019" ..\ -DCMAKE_BUILD_TYPE=Debug
 
 echo Calling VS Developer Command Prompt to build
 call %VS_CMD_PATH%

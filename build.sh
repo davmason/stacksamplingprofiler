@@ -22,7 +22,7 @@ pushd bin
 
 export CC=/usr/bin/clang
 export CXX=/usr/bin/clang++
-cmake ../
+cmake ../ -DCMAKE_BUILD_TYPE=Debug
 
 make -j8
 

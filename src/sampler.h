@@ -6,6 +6,14 @@
 #include <condition_variable>
 #include <string>
 
+#if WIN32
+#define WSTRING std::wstring
+#define WSTR(str) L##str
+#else // WIN32
+#define WSTRING std::u16string
+#define WSTR(str) u##str
+#endif // WIN32
+
 class CorProfiler;
 
 class ManualEvent
@@ -66,9 +74,9 @@ private:
 
     static void DoSampling(ICorProfilerInfo10* pProfInfo, CorProfiler *parent);
 
-    std::wstring GetClassName(ClassID classId);
-    std::wstring GetModuleName(ModuleID modId);
-    std::wstring GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO frameInfo);
+    WSTRING GetClassName(ClassID classId);
+    WSTRING GetModuleName(ModuleID modId);
+    WSTRING GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO frameInfo);
 public:
     static Sampler* Instance()
     {
