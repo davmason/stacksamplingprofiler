@@ -65,7 +65,7 @@ bool SuspendRuntimeSampler::SampleThread(ThreadID threadID)
    HRESULT hr = pCorProfilerInfo->DoStackSnapshot(threadID,
                                                   DoStackSnapshotStackSnapShotCallbackWrapper,
                                                   COR_PRF_SNAPSHOT_REGISTER_CONTEXT,
-                                                  NULL,
+                                                  (void *)this,
                                                   NULL,
                                                   0);
     if (FAILED(hr))

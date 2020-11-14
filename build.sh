@@ -28,7 +28,7 @@ make -j8
 
 popd
 
-printf '  Copying libCorProfiler.so to main directory\n'
-cp bin/libCorProfiler.so .
+printf '  Copying libCorProfiler.dylib to main directory\n'
+cp bin/libCorProfiler.dylib .
 
 printf 'Done.\n'

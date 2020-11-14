@@ -8,19 +8,17 @@
 
 bool AsyncSampler::BeforeSampleAllThreads()
 {
-    printf("Async sampler not implemented!");
-    return false;
+    return true;
 }
 
 bool AsyncSampler::AfterSampleAllThreads()
 {
-    printf("Async sampler not implemented!");
-    return false;
+    return true;
 }
 
 bool AsyncSampler::SampleThread(ThreadID threadID)
 {
-    printf("Async sampler not implemented!");
+    printf("Async sampler not implemented!\n");
     return false;
 }
 

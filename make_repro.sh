@@ -5,7 +5,7 @@ echo "Building test app (multithreadedapp.dll)"
 
 pushd multithreadedapp
 dotnet build -c release
-dotnet publish -r linux-x64 -c release
+dotnet publish -r osx-x64 -c release
 popd
 
 echo ""
@@ -29,12 +29,12 @@ echo "Copying repro.cmd to repro folder"
 cp ../repro.sh .
 
 echo ""
-echo "Copying libCorProfiler.so to repro folder"
-cp ../libCorProfiler.so .
+echo "Copying libCorProfiler.dylib to repro folder"
+cp ../libCorProfiler.dylib .
 
 echo ""
 echo "Copying published files to runtime folder"
-cp -R ../multithreadedapp/bin/release/net5.0/linux-x64/* runtime/
+cp -R ../multithreadedapp/bin/release/net5.0/osx-x64/* runtime/
 
 echo ""
 echo "Copying app files to repro folder"

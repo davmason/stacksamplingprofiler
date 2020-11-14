@@ -297,10 +297,7 @@ void Sampler::DoSampling(Sampler *sampler, ICorProfilerInfo10 *pProfInfo, CorPro
         {
             printf("Starting stack walk for managed thread id=0x%" PRIx64 "\n", (uint64_t)threadID);
 
-            if (!sampler->SampleThread(threadID))
-            {
-                continue;
-            }
+            sampler->SampleThread(threadID);
 
             printf("Ending stack walk for managed thread id=0x%" PRIx64 "\n", (uint64_t)threadID);
         }
