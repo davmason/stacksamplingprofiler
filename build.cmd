@@ -41,6 +41,7 @@ echo   BuildArch    : %BuildArch%
 echo   BuildType    : %BuildType%
 echo   VS PATH      : %VS_CMD_PATH%
 
+echo.
 echo   Building
 
 if not exist bin\ (

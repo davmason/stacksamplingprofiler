@@ -3,7 +3,6 @@
 
 #include "CorProfiler.h"
 #include "corhlpr.h"
-#include "CComPtr.h"
 #include "profiler_pal.h"
 #include "sampler.h"
 #include <string>

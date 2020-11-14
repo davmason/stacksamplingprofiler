@@ -11,8 +11,9 @@ if(NOT WIN32)
 endif(NOT WIN32)
 
 if (WIN32)
-    set(BASE_SOURCES src/windows/CorProfiler.def)
+    set(BASE_SOURCES src/CorProfiler.def)
 endif(WIN32)
+
 include_directories($CORECLR_BIN/inc $ENV{CORECLR_PATH}/src/pal/prebuilt/inc)
 
 set(SOURCES ${BASE_SOURCES} src/ClassFactory.cpp src/CorProfiler.cpp src/dllmain.cpp src/sampler.cpp $ENV{CORECLR_PATH}/src/pal/prebuilt/idl/corprof_i.cpp)

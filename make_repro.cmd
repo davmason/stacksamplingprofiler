@@ -26,7 +26,7 @@ mkdir runtime
 
 echo.
 echo Copying repro.cmd to repro folder
-copy ..\src\windows\repro.cmd .
+copy ..\repro.cmd .
 
 echo.
 echo Copying CorProfier.dll to repro folder
@@ -34,11 +34,11 @@ copy ..\CorProfiler.dll .
 
 echo.
 echo Copying published files to runtime folder
-xcopy /y /e /q ..\multithreadedapp\bin\release\netcoreapp3.1\win10-x64\* runtime\
+xcopy /y /e /q ..\multithreadedapp\bin\release\net5.0\win10-x64\* runtime\
 
 echo.
 echo Copying app files to repro folder
-xcopy /y /q ..\multithreadedapp\bin\release\netcoreapp3.1\* .
+xcopy /y /q ..\multithreadedapp\bin\release\net5.0\* .
 
 if ["%~1"]==[""] (
     echo Did not pass a path to a coreclr repo, skipping copying private bits

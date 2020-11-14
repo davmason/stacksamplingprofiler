@@ -26,7 +26,7 @@ mkdir runtime
 
 echo ""
 echo "Copying repro.cmd to repro folder"
-cp ../src/linux/repro.sh .
+cp ../repro.sh .
 
 echo ""
 echo "Copying libCorProfiler.so to repro folder"
@@ -34,12 +34,12 @@ cp ../libCorProfiler.so .
 
 echo ""
 echo "Copying published files to runtime folder"
-cp -R ../multithreadedapp/bin/release/netcoreapp3.1/linux-x64/* runtime/
+cp -R ../multithreadedapp/bin/release/net5.0/linux-x64/* runtime/
 
 echo ""
 echo "Copying app files to repro folder"
-cp -R ../multithreadedapp/bin/release/netcoreapp3.1/*.dll .
-cp -R ../multithreadedapp/bin/release/netcoreapp3.1/*.pdb .
+cp -R ../multithreadedapp/bin/release/net5.0/*.dll .
+cp -R ../multithreadedapp/bin/release/net5.0/*.pdb .
 
 if [ -z "$1" ]; then
     echo "Did not pass a path to a coreclr repo, skipping copying private bits"
