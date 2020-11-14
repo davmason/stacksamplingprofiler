@@ -3,7 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 #include "CorProfiler.h"
-#include "sampler.h"
+#include "suspendruntime_sampler.h"
 #include <thread>
 #include <cwchar>
 #include <cstdio>
@@ -15,8 +15,8 @@ using std::wstring_convert;
 using std::codecvt_utf8;
 using std::string;
 
-ManualEvent Sampler::s_waitEvent;
-Sampler *Sampler::s_instance = nullptr;
+ManualEvent SuspendRuntimeSampler::s_waitEvent;
+SuspendRuntimeSampler *SuspendRuntimeSampler::s_instance = nullptr;
 
 HRESULT __stdcall DoStackSnapshotStackSnapShotCallbackWrapper(
     FunctionID funcId,
@@ -26,7 +26,7 @@ HRESULT __stdcall DoStackSnapshotStackSnapShotCallbackWrapper(
     BYTE context[],
     void* clientData)
 {
-    return Sampler::Instance()->StackSnapshotCallback(funcId,
+    return SuspendRuntimeSampler::Instance()->StackSnapshotCallback(funcId,
         ip,
         frameInfo,
         contextSize,
@@ -34,16 +34,16 @@ HRESULT __stdcall DoStackSnapshotStackSnapShotCallbackWrapper(
         clientData);
 }
 
-Sampler::Sampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
+SuspendRuntimeSampler::SuspendRuntimeSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
     m_workerThread(DoSampling, pProfInfo, parent)
 {
-    Sampler::s_instance = this;
+    SuspendRuntimeSampler::s_instance = this;
 }
 
 // static
-void Sampler::DoSampling(ICorProfilerInfo10 *pProfInfo, CorProfiler *parent)
+void SuspendRuntimeSampler::DoSampling(ICorProfilerInfo10 *pProfInfo, CorProfiler *parent)
 {
-    Sampler::Instance()->corProfilerInfo = parent->corProfilerInfo;
+    SuspendRuntimeSampler::Instance()->corProfilerInfo = parent->corProfilerInfo;
 
     pProfInfo->InitializeCurrentThread();
 
@@ -119,17 +119,17 @@ void Sampler::DoSampling(ICorProfilerInfo10 *pProfInfo, CorProfiler *parent)
     }
 }
 
-void Sampler::Start()
+void SuspendRuntimeSampler::Start()
 {
     s_waitEvent.Signal();
 }
 
-void Sampler::Stop()
+void SuspendRuntimeSampler::Stop()
 {
     s_waitEvent.Reset();
 }
 
-HRESULT Sampler::StackSnapshotCallback(FunctionID funcId, UINT_PTR ip, COR_PRF_FRAME_INFO frameInfo, ULONG32 contextSize, BYTE context[], void* clientData)
+HRESULT SuspendRuntimeSampler::StackSnapshotCallback(FunctionID funcId, UINT_PTR ip, COR_PRF_FRAME_INFO frameInfo, ULONG32 contextSize, BYTE context[], void* clientData)
 {
     WSTRING functionName = GetFunctionName(funcId, frameInfo);
 
@@ -144,7 +144,7 @@ HRESULT Sampler::StackSnapshotCallback(FunctionID funcId, UINT_PTR ip, COR_PRF_F
     return S_OK;
 }
 
-WSTRING Sampler::GetModuleName(ModuleID modId)
+WSTRING SuspendRuntimeSampler::GetModuleName(ModuleID modId)
 {
     WCHAR moduleFullName[STRING_LENGTH];
     ULONG nameLength = 0;
@@ -199,7 +199,7 @@ WSTRING Sampler::GetModuleName(ModuleID modId)
 }
 
 
-WSTRING Sampler::GetClassName(ClassID classId)
+WSTRING SuspendRuntimeSampler::GetClassName(ClassID classId)
 {
     ModuleID modId;
     mdTypeDef classToken;
@@ -295,7 +295,7 @@ WSTRING Sampler::GetClassName(ClassID classId)
     return name;
 }
 
-WSTRING Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO frameInfo)
+WSTRING SuspendRuntimeSampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO frameInfo)
 {
     if (funcID == NULL)
     {

@@ -4,7 +4,8 @@
 #include "CorProfiler.h"
 #include "corhlpr.h"
 #include "profiler_pal.h"
-#include "sampler.h"
+#include "async_sampler.h"
+#include "suspendruntime_sampler.h"
 #include <string>
 #include <assert.h>
 
@@ -41,7 +42,19 @@ HRESULT STDMETHODCALLTYPE CorProfiler::Initialize(IUnknown *pICorProfilerInfoUnk
 
     corProfilerInfo->SetEventMask2(COR_PRF_ENABLE_STACK_SNAPSHOT | COR_PRF_MONITOR_JIT_COMPILATION, 0);
 
-    sampler = shared_ptr<Sampler>(new Sampler(corProfilerInfo, this));
+    if (ReadEnvironmentVariable("STACKSAMPLER_ASYNC") != "")
+    {
+        printf("Using asynchronous stack sampling\n");
+
+        sampler = shared_ptr<Sampler>(new AsyncSampler(corProfilerInfo, this));
+    }
+    else
+    {
+        printf("Using synchronouse stack sampling\n");
+
+        sampler = shared_ptr<Sampler>(new SuspendRuntimeSampler(corProfilerInfo, this));
+    }
+
     sampler->Start();
 
     return S_OK;

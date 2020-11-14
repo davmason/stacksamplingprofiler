@@ -6,62 +6,11 @@
 
 #include <atomic>
 #include <memory>
-#include <set>
-#include <mutex>
 #include <vector>
-#include <condition_variable>
 #include "cor.h"
 #include "corprof.h"
 #include "sampler.h"
-
-#define SHORT_LENGTH    32
-#define STRING_LENGTH  256
-#define LONG_LENGTH   1024
-
-template <class MetaInterface>
-class COMPtrHolder
-{
-public:
-    COMPtrHolder()
-    {
-        m_ptr = NULL;
-    }
-    
-    COMPtrHolder(MetaInterface* ptr)
-    {
-        if (ptr != NULL)
-        {
-            ptr->AddRef();
-        }
-        m_ptr = ptr;
-    }
-    
-    ~COMPtrHolder()
-    {
-        if (m_ptr != NULL)
-        {
-            m_ptr->Release();
-            m_ptr = NULL;
-        }
-    }
-    MetaInterface* operator->()
-    {
-        return m_ptr;
-    }
-
-    MetaInterface** operator&()
-    {
-       // _ASSERT(m_ptr == NULL);
-        return &m_ptr;
-    }
-    
-    operator MetaInterface*()
-    {
-        return m_ptr;
-    }
-private:
-    MetaInterface* m_ptr;
-};
+#include "common.h"
 
 class CorProfiler : public ICorProfilerCallback8
 {
