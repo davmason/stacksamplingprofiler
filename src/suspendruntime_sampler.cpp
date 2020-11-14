@@ -90,6 +90,16 @@ SuspendRuntimeSampler::SuspendRuntimeSampler(ICorProfilerInfo10* pProfInfo, CorP
 
 }
 
+void SuspendRuntimeSampler::ThreadCreated(uintptr_t threadId)
+{
+    // Nothing to do
+}
+
+void SuspendRuntimeSampler::ThreadDestroyed(uintptr_t threadId)
+{
+    // Nothing to do
+}
+
 HRESULT SuspendRuntimeSampler::StackSnapshotCallback(FunctionID funcId, UINT_PTR ip, COR_PRF_FRAME_INFO frameInfo, ULONG32 contextSize, BYTE context[], void* clientData)
 {
     WSTRING functionName = GetFunctionName(funcId, frameInfo);

@@ -40,7 +40,10 @@ HRESULT STDMETHODCALLTYPE CorProfiler::Initialize(IUnknown *pICorProfilerInfoUnk
         return E_FAIL;
     }
 
-    corProfilerInfo->SetEventMask2(COR_PRF_ENABLE_STACK_SNAPSHOT | COR_PRF_MONITOR_JIT_COMPILATION, 0);
+    corProfilerInfo->SetEventMask2(COR_PRF_ENABLE_STACK_SNAPSHOT |
+                                   COR_PRF_MONITOR_JIT_COMPILATION |
+                                   COR_PRF_MONITOR_THREADS,
+                                   0);
 
     if (ReadEnvironmentVariable("STACKSAMPLER_ASYNC") != "")
     {
@@ -194,11 +197,15 @@ HRESULT STDMETHODCALLTYPE CorProfiler::JITInlining(FunctionID callerId, Function
 
 HRESULT STDMETHODCALLTYPE CorProfiler::ThreadCreated(ThreadID threadId)
 {
+    sampler->ThreadCreated((uintptr_t)threadId);
+
     return S_OK;
 }
 
 HRESULT STDMETHODCALLTYPE CorProfiler::ThreadDestroyed(ThreadID threadId)
 {
+    sampler->ThreadDestroyed((uintptr_t)threadId);
+
     return S_OK;
 }
 

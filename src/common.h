@@ -5,9 +5,12 @@
 #pragma once
 
 #include <mutex>
+#include <shared_mutex>
 #include <functional>
 #include <condition_variable>
 #include <string>
+#include <set>
+#include <map>
 
 #if WIN32
 #define WSTRING std::wstring
@@ -68,6 +71,62 @@ private:
     MetaInterface* m_ptr;
 };
 
+class AutoEvent
+{
+private:
+    std::mutex m_mtx;
+    std::condition_variable m_cv;
+    bool m_set = false;
+
+    static void DoNothing()
+    {
+
+    }
+
+public:
+    AutoEvent() = default;
+    ~AutoEvent() = default;
+    AutoEvent(AutoEvent& other) = delete;
+    AutoEvent(AutoEvent &&other) = delete;
+    AutoEvent &operator=(AutoEvent &other) = delete;
+    AutoEvent &operator=(AutoEvent &&other) = delete;
+
+    void Wait(std::function<void()> spuriousCallback = DoNothing)
+    {
+        std::unique_lock<std::mutex> lock(m_mtx);
+        while (!m_set)
+        {
+            m_cv.wait(lock, [&]() { return m_set; });
+            if (!m_set)
+            {
+                spuriousCallback();
+            }
+        }
+        m_set = false;
+    }
+
+    void WaitFor(int milliseconds, std::function<void()> spuriousCallback = DoNothing)
+    {
+        std::unique_lock<std::mutex> lock(m_mtx);
+        while (!m_set)
+        {
+            m_cv.wait_for(lock, std::chrono::milliseconds(milliseconds), [&]() { return m_set; });
+            if (!m_set)
+            {
+                spuriousCallback();
+            }
+        }
+        m_set = false;
+    }
+
+    void Signal()
+    {
+        std::unique_lock<std::mutex> lock(m_mtx);
+        m_set = true;
+        m_cv.notify_one();
+    }
+};
+
 class ManualEvent
 {
 private:
@@ -111,5 +170,40 @@ public:
     {
         std::unique_lock<std::mutex> lock(m_mtx);
         m_set = false;
+    }
+};
+
+
+template<class Key, class Value>
+class ThreadSafeMap
+{
+  private:
+     std::map<Key, Value> _map;
+     mutable std::shared_mutex _mutex;
+
+  public:
+    typename std::map<Key, Value>::const_iterator find(Key key) const
+    {
+        std::shared_lock lock(_mutex);
+        return _map.find(key);
+    }
+
+    typename std::map<Key, Value>::const_iterator end() const
+    {
+        return _map.end();
+    }
+
+    // Returns true if new value was inserted
+    bool insertNew(Key key, Value value)
+    {
+        std::unique_lock lock(_mutex);
+
+        if (_map.find(key) != _map.end())
+        {
+            return false;
+        }
+
+        _map[key] = value;
+        return true;
     }
 };

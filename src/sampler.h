@@ -35,4 +35,7 @@ public:
 
     void Start();
     void Stop();
+
+    virtual void ThreadCreated(uintptr_t threadId) = 0;
+    virtual void ThreadDestroyed(uintptr_t threadId) = 0;
 };

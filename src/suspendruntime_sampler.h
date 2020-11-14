@@ -18,6 +18,9 @@ public:
     SuspendRuntimeSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent);
     virtual ~SuspendRuntimeSampler() = default;
 
+    virtual void ThreadCreated(uintptr_t threadId);
+    virtual void ThreadDestroyed(uintptr_t threadId);
+
     HRESULT StackSnapshotCallback(FunctionID funcId,
         UINT_PTR ip,
         COR_PRF_FRAME_INFO frameInfo,
