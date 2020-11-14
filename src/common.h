@@ -1,3 +1,7 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
+
 #pragma once
 
 #include <mutex>
@@ -27,7 +31,7 @@ public:
     {
         m_ptr = NULL;
     }
-    
+
     COMPtrHolder(MetaInterface* ptr)
     {
         if (ptr != NULL)
@@ -36,7 +40,7 @@ public:
         }
         m_ptr = ptr;
     }
-    
+
     ~COMPtrHolder()
     {
         if (m_ptr != NULL)
@@ -55,7 +59,7 @@ public:
        // _ASSERT(m_ptr == NULL);
         return &m_ptr;
     }
-    
+
     operator MetaInterface*()
     {
         return m_ptr;

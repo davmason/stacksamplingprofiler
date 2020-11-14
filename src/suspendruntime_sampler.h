@@ -4,37 +4,19 @@
 
 #pragma once
 
-#include <thread>
 #include "sampler.h"
-
-class CorProfiler;
 
 class SuspendRuntimeSampler : public Sampler
 {
-private:
-    static SuspendRuntimeSampler* s_instance;
+protected:
+    virtual bool BeforeSampleAllThreads();
+    virtual bool AfterSampleAllThreads();
 
-    std::thread m_workerThread;
-    static ManualEvent s_waitEvent;
+    virtual bool SampleThread(ThreadID threadID);
 
-    ICorProfilerInfo10* corProfilerInfo;
-
-    static void DoSampling(ICorProfilerInfo10* pProfInfo, CorProfiler *parent);
-
-    WSTRING GetClassName(ClassID classId);
-    WSTRING GetModuleName(ModuleID modId);
-    WSTRING GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO frameInfo);
 public:
-    static SuspendRuntimeSampler* Instance()
-    {
-        return s_instance;
-    }
-
     SuspendRuntimeSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent);
     virtual ~SuspendRuntimeSampler() = default;
-
-    virtual void Start();
-    virtual void Stop();
 
     HRESULT StackSnapshotCallback(FunctionID funcId,
         UINT_PTR ip,
