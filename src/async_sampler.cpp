@@ -9,7 +9,6 @@
 #include <cinttypes>
 #include <locale>
 #include <codecvt>
-#define UNW_LOCAL_ONLY
 #include <libunwind.h>
 
 using std::wstring_convert;
@@ -18,6 +17,22 @@ using std::string;
 
 AutoEvent AsyncSampler::s_threadSampledEvent;
 AsyncSampler *AsyncSampler::s_instance;
+
+static HRESULT __stdcall DoStackSnapshotStackSnapShotCallbackWrapper(
+    FunctionID funcId,
+    UINT_PTR ip,
+    COR_PRF_FRAME_INFO frameInfo,
+    ULONG32 contextSize,
+    BYTE context[],
+    void* clientData)
+{
+    return AsyncSampler::Instance()->StackSnapshotCallback(funcId,
+        ip,
+        frameInfo,
+        contextSize,
+        context,
+        clientData);
+}
 
 //static
 void AsyncSampler::SignalHandler(int signal, siginfo_t *info, void *unused)
@@ -80,7 +95,32 @@ void AsyncSampler::SignalHandler(int signal, siginfo_t *info, void *unused)
         }
     } while ((result = unw_step(&cursor)) > 0);
 
-    printf("Done walking stack, result=%d\n", result);
+    printf("Done walking stack with libunwind, result=%d\n", result);
+
+    ThreadID profThreadID;
+    HRESULT hr = pProfilerInfo->GetCurrentThreadID(&profThreadID);
+    if (FAILED(hr))
+    {
+        printf("GetCurrentThreadID failed with hr=0x%x\n", hr);
+    }
+
+    hr = pProfilerInfo->DoStackSnapshot(profThreadID,
+                                        DoStackSnapshotStackSnapShotCallbackWrapper,
+                                        COR_PRF_SNAPSHOT_REGISTER_CONTEXT,
+                                        NULL,
+                                        NULL,
+                                        0);
+    if (FAILED(hr))
+    {
+        if (hr == E_FAIL)
+        {
+            printf("Managed thread id=0x%" PRIx64 " has no managed frames to walk \n", (uint64_t)profThreadID);
+        }
+        else
+        {
+            printf("DoStackSnapshot for thread id=0x%" PRIx64 " failed with hr=0x%x \n", (uint64_t)profThreadID, hr);
+        }
+    }
 
     s_threadSampledEvent.Signal();
 }
@@ -146,4 +186,19 @@ void AsyncSampler::ThreadCreated(uintptr_t threadId)
 void AsyncSampler::ThreadDestroyed(uintptr_t threadId)
 {
     // should probably delete it from the map
+}
+
+HRESULT AsyncSampler::StackSnapshotCallback(FunctionID funcId, UINT_PTR ip, COR_PRF_FRAME_INFO frameInfo, ULONG32 contextSize, BYTE context[], void* clientData)
+{
+    WSTRING functionName = GetFunctionName(funcId, frameInfo);
+
+#if WIN32
+    wstring_convert<codecvt_utf8<wchar_t>, wchar_t> convert;
+#else // WIN32
+    wstring_convert<codecvt_utf8<char16_t>, char16_t> convert;
+#endif // WIN32
+
+    string printable = convert.to_bytes(functionName);
+    printf("    %s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)funcId);
+    return S_OK;
 }

@@ -15,7 +15,7 @@ using std::wstring_convert;
 using std::codecvt_utf8;
 using std::string;
 
-HRESULT __stdcall DoStackSnapshotStackSnapShotCallbackWrapper(
+static HRESULT __stdcall DoStackSnapshotStackSnapShotCallbackWrapper(
     FunctionID funcId,
     UINT_PTR ip,
     COR_PRF_FRAME_INFO frameInfo,
@@ -114,4 +114,3 @@ HRESULT SuspendRuntimeSampler::StackSnapshotCallback(FunctionID funcId, UINT_PTR
     printf("    %s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)funcId);
     return S_OK;
 }
-

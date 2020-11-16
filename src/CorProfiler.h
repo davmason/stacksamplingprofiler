@@ -20,6 +20,8 @@ private:
 
     std::atomic<int> jitEventCount;
 
+    ThreadSafeMap<ModuleID, IMetaDataImport *> m_moduleMetadata;
+
 public:
     ICorProfilerInfo10* corProfilerInfo;
 
@@ -157,4 +159,5 @@ public:
     }
 
     bool IsRuntimeExecutingManagedCode();
+    IMetaDataImport *GetMetadataForModule(ModuleID moduleID);
 };

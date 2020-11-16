@@ -27,9 +27,16 @@ protected:
     virtual bool SampleThread(ThreadID threadID);
 
 public:
+    static AsyncSampler *Instance()
+    {
+        return s_instance;
+    }
+
     AsyncSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent);
     virtual ~AsyncSampler() = default;
 
     virtual void ThreadCreated(uintptr_t threadId);
     virtual void ThreadDestroyed(uintptr_t threadId);
+
+    HRESULT StackSnapshotCallback(FunctionID funcId, UINT_PTR ip, COR_PRF_FRAME_INFO frameInfo, ULONG32 contextSize, BYTE context[], void* clientData);
 };

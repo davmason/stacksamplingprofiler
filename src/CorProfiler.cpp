@@ -15,7 +15,8 @@ CorProfiler::CorProfiler() :
     refCount(0),
     corProfilerInfo(nullptr),
     sampler(),
-    jitEventCount(0)
+    jitEventCount(0),
+    m_moduleMetadata()
 {
 
 }
@@ -42,7 +43,8 @@ HRESULT STDMETHODCALLTYPE CorProfiler::Initialize(IUnknown *pICorProfilerInfoUnk
 
     corProfilerInfo->SetEventMask2(COR_PRF_ENABLE_STACK_SNAPSHOT |
                                    COR_PRF_MONITOR_JIT_COMPILATION |
-                                   COR_PRF_MONITOR_THREADS,
+                                   COR_PRF_MONITOR_THREADS |
+                                   COR_PRF_MONITOR_MODULE_LOADS,
                                    0);
 
     if (ReadEnvironmentVariable("STACKSAMPLER_ASYNC") != "")
@@ -116,6 +118,19 @@ HRESULT STDMETHODCALLTYPE CorProfiler::AssemblyUnloadFinished(AssemblyID assembl
 
 HRESULT STDMETHODCALLTYPE CorProfiler::ModuleLoadStarted(ModuleID moduleId)
 {
+    IMetaDataImport *pMDImport;
+    HRESULT hr = corProfilerInfo->GetModuleMetaData(moduleId,
+                                                     (ofRead | ofWrite),
+                                                     IID_IMetaDataImport,
+                                                     (IUnknown **)&pMDImport );
+    if (FAILED(hr))
+    {
+        printf("GetModuleMetaData failed with hr=0x%x\n", hr);
+        return S_OK;
+    }
+
+    m_moduleMetadata.insertNew(moduleId, pMDImport);
+
     return S_OK;
 }
 
@@ -527,4 +542,15 @@ HRESULT STDMETHODCALLTYPE CorProfiler::DynamicMethodJITCompilationFinished(Funct
 bool CorProfiler::IsRuntimeExecutingManagedCode()
 {
     return jitEventCount.load() > 0;
+}
+
+IMetaDataImport *CorProfiler::GetMetadataForModule(ModuleID moduleID)
+{
+    auto metadata = m_moduleMetadata.find(moduleID);
+    if (metadata != m_moduleMetadata.end())
+    {
+        return metadata->second;
+    }
+
+    return NULL;
 }

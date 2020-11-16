@@ -108,17 +108,11 @@ WSTRING Sampler::GetClassName(ClassID classId)
         return WSTR("Unknown");
     }
 
-    COMPtrHolder<IMetaDataImport> pMDImport;
-    hr = pCorProfilerInfo->GetModuleMetaData(modId,
-                                            (ofRead | ofWrite),
-                                            IID_IMetaDataImport,
-                                            (IUnknown **)&pMDImport );
-    if (FAILED(hr))
+    IMetaDataImport *pMDImport = pParent->GetMetadataForModule(modId);
+    if (pMDImport == NULL)
     {
-        printf("GetModuleMetaData failed with hr=0x%x\n", hr);
         return WSTR("Unknown");
     }
-
 
     WCHAR wName[LONG_LENGTH];
     DWORD dwTypeDefFlags = 0;
@@ -187,18 +181,14 @@ WSTRING Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO fra
         printf("GetFunctionInfo2 failed with hr=0x%x\n", hr);
     }
 
-    COMPtrHolder<IMetaDataImport> pIMDImport;
-    hr = pCorProfilerInfo->GetModuleMetaData(moduleId,
-                                            ofRead,
-                                            IID_IMetaDataImport,
-                                            (IUnknown **)&pIMDImport);
-    if (FAILED(hr))
+    IMetaDataImport *pMDImport = pParent->GetMetadataForModule(moduleId);
+    if (pMDImport == NULL)
     {
-        printf("GetModuleMetaData failed with hr=0x%x\n", hr);
+        return WSTR("Unknown");
     }
 
     WCHAR funcName[STRING_LENGTH];
-    hr = pIMDImport->GetMethodProps(token,
+    hr = pMDImport->GetMethodProps(token,
                                     NULL,
                                     funcName,
                                     STRING_LENGTH,
@@ -311,7 +301,8 @@ void Sampler::DoSampling(Sampler *sampler, ICorProfilerInfo10 *pProfInfo, CorPro
 
 Sampler::Sampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
     m_workerThread(DoSampling, this, pProfInfo, parent),
-    pCorProfilerInfo(pProfInfo)
+    pCorProfilerInfo(pProfInfo),
+    pParent(parent)
 {
 
 }

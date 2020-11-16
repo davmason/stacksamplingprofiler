@@ -19,6 +19,7 @@ private:
 
 protected:
     ICorProfilerInfo10* pCorProfilerInfo;
+    CorProfiler *pParent;
 
     WSTRING GetClassName(ClassID classId);
     WSTRING GetModuleName(ModuleID modId);
