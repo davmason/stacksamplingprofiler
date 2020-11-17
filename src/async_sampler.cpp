@@ -48,15 +48,6 @@ bool AsyncSampler::SampleThread(ThreadID threadID)
 {
     pthread_t nativeThreadId = GetNativeThreadID(threadID);
 
-    fprintf(m_outputFile, "Contents of /proc/self/task/[tid]/stat for thread %p\n", nativeThreadId);
-    string fileName = "/proc/self/task/" + std::to_string((uintptr_t)nativeThreadId) + "/stat";
-    ifstream threadState(fileName);
-    string line;
-    while (getline(threadState, line))
-    {
-        fprintf(m_outputFile, "%s\n", line.c_str());
-    }
-
     uint64_t tid;
     pthread_threadid_np(nativeThreadId, &tid);
     fprintf(m_outputFile, "Sending signal to thread %" PRIx64 " state=%d\n", tid, GetThreadState(threadID));
