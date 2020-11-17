@@ -243,6 +243,19 @@ WSTRING Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO fra
     return name;
 }
 
+pthread_t Sampler::GetNativeThreadID(ThreadID threadID)
+{
+    auto it = m_threadIDMap.find(threadID);
+    if (it == m_threadIDMap.end())
+    {
+        assert(!"Unexpected thread found");
+        return 0;
+    }
+
+    pthread_t nativeThreadId = it->second;
+    return nativeThreadId;
+}
+
 // static
 void Sampler::DoSampling(Sampler *sampler, ICorProfilerInfo10 *pProfInfo, CorProfiler *parent, FILE *outputFile)
 {
@@ -303,9 +316,12 @@ Sampler::Sampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
     m_workerThread(),
     m_pCorProfilerInfo(pProfInfo),
     m_parent(parent),
-    m_outputFile(fopen(Sampler::OutputName, "w+"))
+    m_outputFile(NULL),
+    m_threadIDMap()
 {
-    printf("Writing sampler output to \"%s\"\n", Sampler::OutputName);
+    std::string fileName = std::tmpnam(nullptr) + std::string(".txt");
+    m_outputFile = fopen(fileName.c_str(), "w+");
+    printf("Writing sampler output to \"%s\"\n", fileName.c_str());
     m_workerThread = std::thread(DoSampling, this, pProfInfo, parent, m_outputFile);
 }
 
@@ -323,4 +339,15 @@ void Sampler::Start()
 void Sampler::Stop()
 {
     s_waitEvent.Reset();
+}
+
+void Sampler::ThreadCreated(uintptr_t threadId)
+{
+    pthread_t tid = pthread_self();
+    m_threadIDMap.insertNew(threadId, tid);
+}
+
+void Sampler::ThreadDestroyed(uintptr_t threadId)
+{
+    // should probably delete it from the map
 }

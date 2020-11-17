@@ -2,12 +2,19 @@ cmake_minimum_required (VERSION 3.14)
 
 project(CorProfiler)
 
-if(NOT WIN32)
-    set(BASE_SOURCES )
+if(APPLE)
+    set(BASE_SOURCES src/sampler_macos.cpp)
     add_compile_options(-Wno-invalid-noreturn -Wno-pragma-pack -Wno-int-to-pointer-cast -fPIC -fms-extensions -DBIT64 -DPAL_STDCPP_COMPAT -DPLATFORM_UNIX -DHOST_64BIT -std=c++17)
 
     include_directories($ENV{CORECLR_PATH}/src/pal/inc/rt $ENV{CORECLR_PATH}/src/pal/inc $ENV{CORECLR_PATH}/src/inc)
-endif(NOT WIN32)
+endif(APPLE)
+
+if (LINUX)
+    set(BASE_SOURCES src/sampler_linux.cpp)
+    add_compile_options(-Wno-invalid-noreturn -Wno-pragma-pack -Wno-int-to-pointer-cast -fPIC -fms-extensions -DBIT64 -DPAL_STDCPP_COMPAT -DPLATFORM_UNIX -DHOST_64BIT -std=c++17)
+
+    include_directories($ENV{CORECLR_PATH}/src/pal/inc/rt $ENV{CORECLR_PATH}/src/pal/inc $ENV{CORECLR_PATH}/src/inc)
+endif(LINUX)
 
 if (WIN32)
     set(BASE_SOURCES src/CorProfiler.def)

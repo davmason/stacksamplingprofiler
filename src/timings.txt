@@ -1,0 +1,14 @@
+Running against MvcDbMultiQueryRaw with no profiler
+    dave@Davids-MacBook-Pro-2 Benchmarks % wrk -c 1000 -t 8 -d 30 http://localhost:5000
+    Running 30s test @ http://localhost:5000
+      8 threads and 1000 connections
+      Thread Stats   Avg      Stdev     Max   +/- Stdev
+        Latency    11.91ms    5.22ms 144.06ms   99.32%
+        Req/Sec    10.63k     1.51k   12.45k    90.28%
+      2547836 requests in 30.13s, 240.55MB read
+      Socket errors: connect 0, read 2209, write 0, timeout 0
+      Non-2xx or 3xx responses: 2547836
+    Requests/sec:  84553.42
+    Transfer/sec:      7.98MB
+
+Running against MvcDbMultiQueryRaw with async profiler:

@@ -6,9 +6,17 @@
 
 #include <thread>
 #include <cstdio>
+#include <atomic>
 #include "common.h"
 
 class CorProfiler;
+
+enum class ThreadState
+{
+    Running = 1,
+    Suspended = 2,
+    Dead = 3
+};
 
 class Sampler
 {
@@ -22,12 +30,16 @@ private:
 protected:
     ICorProfilerInfo10* m_pCorProfilerInfo;
     CorProfiler *m_parent;
-
     FILE *m_outputFile;
+    ThreadSafeMap<uintptr_t, pthread_t> m_threadIDMap;
 
     WSTRING GetClassName(ClassID classId);
     WSTRING GetModuleName(ModuleID modId);
     WSTRING GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO frameInfo);
+
+    ThreadState GetThreadState(ThreadID threadID);
+
+    pthread_t GetNativeThreadID(ThreadID threadID);
 
     virtual bool BeforeSampleAllThreads() = 0;
     virtual bool AfterSampleAllThreads() = 0;
@@ -41,6 +53,6 @@ public:
     void Start();
     void Stop();
 
-    virtual void ThreadCreated(uintptr_t threadId) = 0;
-    virtual void ThreadDestroyed(uintptr_t threadId) = 0;
+    virtual void ThreadCreated(uintptr_t threadId);
+    virtual void ThreadDestroyed(uintptr_t threadId);
 };

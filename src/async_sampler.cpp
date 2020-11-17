@@ -11,10 +11,13 @@
 #include <codecvt>
 #include <libunwind.h>
 #include <execinfo.h>
+#include <fstream>
+#include <iostream>
 
 using std::wstring_convert;
 using std::codecvt_utf8;
 using std::string;
+using std::ifstream;
 
 AutoEvent AsyncSampler::s_threadSampledEvent;
 AsyncSampler *AsyncSampler::s_instance;
@@ -43,18 +46,20 @@ bool AsyncSampler::AfterSampleAllThreads()
 
 bool AsyncSampler::SampleThread(ThreadID threadID)
 {
-    auto it = m_threadIDMap.find(threadID);
-    if (it == m_threadIDMap.end())
-    {
-        assert(!"Unexpected thread found");
-        return false;
-    }
+    pthread_t nativeThreadId = GetNativeThreadID(threadID);
 
-    pthread_t nativeThreadId = it->second;
+    fprintf(m_outputFile, "Contents of /proc/self/task/[tid]/stat for thread %p\n", nativeThreadId);
+    string fileName = "/proc/self/task/" + std::to_string((uintptr_t)nativeThreadId) + "/stat";
+    ifstream threadState(fileName);
+    string line;
+    while (getline(threadState, line))
+    {
+        fprintf(m_outputFile, "%s\n", line.c_str());
+    }
 
     uint64_t tid;
     pthread_threadid_np(nativeThreadId, &tid);
-    fprintf(m_outputFile, "Sending signal to thread %" PRIx64 "!\n", tid);
+    fprintf(m_outputFile, "Sending signal to thread %" PRIx64 " state=%d\n", tid, GetThreadState(threadID));
     int result = pthread_kill(nativeThreadId, SIGUSR2) != 0;
     fprintf(m_outputFile, "pthread_kill result=%d\n", result);
 
@@ -93,7 +98,6 @@ bool AsyncSampler::SampleThread(ThreadID threadID)
 
 AsyncSampler::AsyncSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
     Sampler(pProfInfo, parent),
-    m_threadIDMap(),
     m_stackIPs(),
     m_numStackIPs(0),
     m_stackThreadID(0)
@@ -110,16 +114,5 @@ AsyncSampler::AsyncSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
 
     struct sigaction oldAction;
     int result = sigaction(SIGUSR2, &sampleAction, &oldAction);
-    fprintf(m_outputFile, "sigaction result=%d\n", result);
-}
-
-void AsyncSampler::ThreadCreated(uintptr_t threadId)
-{
-    pthread_t tid = pthread_self();
-    m_threadIDMap.insertNew(threadId, tid);
-}
-
-void AsyncSampler::ThreadDestroyed(uintptr_t threadId)
-{
-    // should probably delete it from the map
+    // fprintf(m_outputFile, "sigaction result=%d\n", result);
 }

@@ -15,7 +15,6 @@ private:
     static AutoEvent s_threadSampledEvent;
     static AsyncSampler *s_instance;
 
-    ThreadSafeMap<uintptr_t, pthread_t> m_threadIDMap;
     std::array<void *, 500> m_stackIPs;
     size_t m_numStackIPs;
     uint64_t m_stackThreadID;
@@ -36,7 +35,4 @@ public:
 
     AsyncSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent);
     virtual ~AsyncSampler() = default;
-
-    virtual void ThreadCreated(uintptr_t threadId);
-    virtual void ThreadDestroyed(uintptr_t threadId);
 };
