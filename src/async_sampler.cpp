@@ -10,6 +10,7 @@
 #include <locale>
 #include <codecvt>
 #include <libunwind.h>
+#include <execinfo.h>
 
 using std::wstring_convert;
 using std::codecvt_utf8;
@@ -48,14 +49,40 @@ void AsyncSampler::SignalHandler(int signal, siginfo_t *info, void *unused)
 
     printf("stackaddr=%p stacksize=%zu thread=%" PRIx64 "\n", stackaddr, stacksize, tid);
 
-    // Want to know SP
+    ICorProfilerInfo10 *pProfilerInfo = s_instance->pCorProfilerInfo;
+    constexpr size_t numAddresses = 100;
+    void *addresses[numAddresses];
+    int backtraceSize = backtrace(addresses, numAddresses);
+    printf("backtrace returned size %d\n", backtraceSize);
+    for (int i = 0; i < backtraceSize; ++i)
+    {
+        // Managed name
+        FunctionID functionID;
+        HRESULT hr = pProfilerInfo->GetFunctionFromIP((uint8_t *)addresses[i], &functionID);
+        if (hr != S_OK)
+        {
+            printf("Unknown native frame ip=0x%p\n", addresses[i]);
+            continue;
+        }
+
+        WSTRING functionName = s_instance->GetFunctionName(functionID, NULL);
+
+#if WIN32
+        wstring_convert<codecvt_utf8<wchar_t>, wchar_t> convert;
+#else // WIN32
+        wstring_convert<codecvt_utf8<char16_t>, char16_t> convert;
+#endif // WIN32
+
+        string printable = convert.to_bytes(functionName);
+        printf("    %s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)functionID);
+    }
+
     unw_context_t context;
     unw_cursor_t cursor;
     unw_getcontext(&context);
     unw_init_local(&cursor, &context);
 
     int result = 0;
-    ICorProfilerInfo10 *pProfilerInfo = s_instance->pCorProfilerInfo;
     do
     {
         // unw_word_t sp;

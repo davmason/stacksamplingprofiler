@@ -12,9 +12,10 @@ export COMPlus_ThreadPool_UsePortableThreadPool=0
 
 export STACKSAMPLER_ASYNC=1
 
-if [ -f "$SCRIPT_PATH/runtime/corerun.exe" ]; then
-    echo "runtime/corerun.exe does not exist, you have to copy it from your local coreclr build!"
-    exit 1
-fi
+# if [ -f "$SCRIPT_PATH/runtime/corerun.exe" ]; then
+#     echo "runtime/corerun.exe does not exist, you have to copy it from your local coreclr build!"
+#     exit 1
+# fi
 
-$SCRIPT_PATH/runtime/corerun $SCRIPT_PATH/multithreadedapp.dll
+# $SCRIPT_PATH/runtime/corerun $SCRIPT_PATH/webapp.dll
+dotnet run -c release -p webapp/webapp.csproj
