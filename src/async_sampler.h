@@ -15,8 +15,10 @@ private:
     static AutoEvent s_threadSampledEvent;
     static AsyncSampler *s_instance;
 
-    ThreadSafeMap<uintptr_t, pthread_t> threadIDMap;
-    // std::array<uint8_t, 32 * 1024> stackBuffer;
+    ThreadSafeMap<uintptr_t, pthread_t> m_threadIDMap;
+    std::array<void *, 500> m_stackIPs;
+    size_t m_numStackIPs;
+    uint64_t m_stackThreadID;
 
     static void SignalHandler(int signal, siginfo_t *info, void *unused);
 
@@ -37,6 +39,4 @@ public:
 
     virtual void ThreadCreated(uintptr_t threadId);
     virtual void ThreadDestroyed(uintptr_t threadId);
-
-    HRESULT StackSnapshotCallback(FunctionID funcId, UINT_PTR ip, COR_PRF_FRAME_INFO frameInfo, ULONG32 contextSize, BYTE context[], void* clientData);
 };

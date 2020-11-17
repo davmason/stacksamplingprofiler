@@ -19,135 +19,14 @@ using std::string;
 AutoEvent AsyncSampler::s_threadSampledEvent;
 AsyncSampler *AsyncSampler::s_instance;
 
-static HRESULT __stdcall DoStackSnapshotStackSnapShotCallbackWrapper(
-    FunctionID funcId,
-    UINT_PTR ip,
-    COR_PRF_FRAME_INFO frameInfo,
-    ULONG32 contextSize,
-    BYTE context[],
-    void* clientData)
-{
-    return AsyncSampler::Instance()->StackSnapshotCallback(funcId,
-        ip,
-        frameInfo,
-        contextSize,
-        context,
-        clientData);
-}
-
 //static
 void AsyncSampler::SignalHandler(int signal, siginfo_t *info, void *unused)
 {
-    uint64_t tid;
     pthread_t threadID = pthread_self();
-    pthread_threadid_np(threadID, &tid);
+    pthread_threadid_np(threadID, &AsyncSampler::Instance()->m_stackThreadID);
 
-    printf("Signal %d caught, running on thread %" PRIx64 "\n", signal, tid);
-
-    void *stackaddr = pthread_get_stackaddr_np(threadID);
-    size_t stacksize = pthread_get_stacksize_np(threadID);
-
-    printf("stackaddr=%p stacksize=%zu thread=%" PRIx64 "\n", stackaddr, stacksize, tid);
-
-    ICorProfilerInfo10 *pProfilerInfo = s_instance->pCorProfilerInfo;
-    constexpr size_t numAddresses = 100;
-    void *addresses[numAddresses];
-    int backtraceSize = backtrace(addresses, numAddresses);
-    printf("backtrace returned size %d\n", backtraceSize);
-    for (int i = 0; i < backtraceSize; ++i)
-    {
-        // Managed name
-        FunctionID functionID;
-        HRESULT hr = pProfilerInfo->GetFunctionFromIP((uint8_t *)addresses[i], &functionID);
-        if (hr != S_OK)
-        {
-            printf("Unknown native frame ip=0x%p\n", addresses[i]);
-            continue;
-        }
-
-        WSTRING functionName = s_instance->GetFunctionName(functionID, NULL);
-
-#if WIN32
-        wstring_convert<codecvt_utf8<wchar_t>, wchar_t> convert;
-#else // WIN32
-        wstring_convert<codecvt_utf8<char16_t>, char16_t> convert;
-#endif // WIN32
-
-        string printable = convert.to_bytes(functionName);
-        printf("    %s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)functionID);
-    }
-
-    unw_context_t context;
-    unw_cursor_t cursor;
-    unw_getcontext(&context);
-    unw_init_local(&cursor, &context);
-
-    int result = 0;
-    do
-    {
-        // unw_word_t sp;
-        unw_word_t ip;
-        // unw_get_reg(&cursor, UNW_REG_SP, &sp);
-        unw_get_reg(&cursor, UNW_REG_IP, &ip);
-
-        char symbolName[256];
-        unw_word_t offset;
-        if (unw_get_proc_name(&cursor, symbolName, sizeof(symbolName), &offset) == 0)
-        {
-            printf(" (%s+0x%lx)\n", symbolName, offset);
-        }
-        else
-        {
-            // TODO: this never gets hit. It stops unwinding at the _sigtramp
-
-            // Managed name
-            FunctionID functionID;
-            HRESULT hr = pProfilerInfo->GetFunctionFromIP((uint8_t *)ip, &functionID);
-            if (hr != S_OK)
-            {
-                printf("GetFunctionFromIP failed with hr=0x%x\n", hr);
-                continue;
-            }
-
-            WSTRING functionName = s_instance->GetFunctionName(functionID, NULL);
-
-#if WIN32
-            wstring_convert<codecvt_utf8<wchar_t>, wchar_t> convert;
-#else // WIN32
-            wstring_convert<codecvt_utf8<char16_t>, char16_t> convert;
-#endif // WIN32
-
-            string printable = convert.to_bytes(functionName);
-            printf("    %s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)functionID);
-        }
-    } while ((result = unw_step(&cursor)) > 0);
-
-    printf("Done walking stack with libunwind, result=%d\n", result);
-
-    ThreadID profThreadID;
-    HRESULT hr = pProfilerInfo->GetCurrentThreadID(&profThreadID);
-    if (FAILED(hr))
-    {
-        printf("GetCurrentThreadID failed with hr=0x%x\n", hr);
-    }
-
-    hr = pProfilerInfo->DoStackSnapshot(profThreadID,
-                                        DoStackSnapshotStackSnapShotCallbackWrapper,
-                                        COR_PRF_SNAPSHOT_REGISTER_CONTEXT,
-                                        NULL,
-                                        NULL,
-                                        0);
-    if (FAILED(hr))
-    {
-        if (hr == E_FAIL)
-        {
-            printf("Managed thread id=0x%" PRIx64 " has no managed frames to walk \n", (uint64_t)profThreadID);
-        }
-        else
-        {
-            printf("DoStackSnapshot for thread id=0x%" PRIx64 " failed with hr=0x%x \n", (uint64_t)profThreadID, hr);
-        }
-    }
+    // Save backtrace for later processing
+    AsyncSampler::Instance()->m_numStackIPs = backtrace(AsyncSampler::Instance()->m_stackIPs.data(), AsyncSampler::Instance()->m_stackIPs.size());
 
     s_threadSampledEvent.Signal();
 }
@@ -164,8 +43,8 @@ bool AsyncSampler::AfterSampleAllThreads()
 
 bool AsyncSampler::SampleThread(ThreadID threadID)
 {
-    auto it = threadIDMap.find(threadID);
-    if (it == threadIDMap.end())
+    auto it = m_threadIDMap.find(threadID);
+    if (it == m_threadIDMap.end())
     {
         assert(!"Unexpected thread found");
         return false;
@@ -175,19 +54,49 @@ bool AsyncSampler::SampleThread(ThreadID threadID)
 
     uint64_t tid;
     pthread_threadid_np(nativeThreadId, &tid);
-    printf("Sending signal to thread %" PRIx64 "!\n", tid);
+    fprintf(m_outputFile, "Sending signal to thread %" PRIx64 "!\n", tid);
     int result = pthread_kill(nativeThreadId, SIGUSR2) != 0;
-    printf("pthread_kill result=%d\n", result);
+    fprintf(m_outputFile, "pthread_kill result=%d\n", result);
 
     // Only sample one thread at a time
     s_threadSampledEvent.Wait();
+
+    char **nativeSymbols = backtrace_symbols(m_stackIPs.data(), m_numStackIPs);
+    for (int i = 0; i < m_numStackIPs; ++i)
+    {
+        // Managed name
+        FunctionID functionID;
+        HRESULT hr = m_pCorProfilerInfo->GetFunctionFromIP((uint8_t *)m_stackIPs[i], &functionID);
+        if (hr != S_OK)
+        {
+            // If it's not managed, must be native
+            fprintf(m_outputFile, "    %s\n", nativeSymbols[i]);
+            continue;
+        }
+
+        WSTRING functionName = s_instance->GetFunctionName(functionID, NULL);
+
+#if WIN32
+        wstring_convert<codecvt_utf8<wchar_t>, wchar_t> convert;
+#else // WIN32
+        wstring_convert<codecvt_utf8<char16_t>, char16_t> convert;
+#endif // WIN32
+
+        string printable = convert.to_bytes(functionName);
+        fprintf(m_outputFile, "    %d  %s (funcId=0x%" PRIx64 ")\n", i, printable.c_str(), (uint64_t)functionID);
+    }
+
+    free(nativeSymbols);
 
     return true;
 }
 
 AsyncSampler::AsyncSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
     Sampler(pProfInfo, parent),
-    threadIDMap()
+    m_threadIDMap(),
+    m_stackIPs(),
+    m_numStackIPs(0),
+    m_stackThreadID(0)
 {
     s_instance = this;
 
@@ -201,31 +110,16 @@ AsyncSampler::AsyncSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
 
     struct sigaction oldAction;
     int result = sigaction(SIGUSR2, &sampleAction, &oldAction);
-    printf("sigaction result=%d\n", result);
+    fprintf(m_outputFile, "sigaction result=%d\n", result);
 }
 
 void AsyncSampler::ThreadCreated(uintptr_t threadId)
 {
     pthread_t tid = pthread_self();
-    threadIDMap.insertNew(threadId, tid);
+    m_threadIDMap.insertNew(threadId, tid);
 }
 
 void AsyncSampler::ThreadDestroyed(uintptr_t threadId)
 {
     // should probably delete it from the map
-}
-
-HRESULT AsyncSampler::StackSnapshotCallback(FunctionID funcId, UINT_PTR ip, COR_PRF_FRAME_INFO frameInfo, ULONG32 contextSize, BYTE context[], void* clientData)
-{
-    WSTRING functionName = GetFunctionName(funcId, frameInfo);
-
-#if WIN32
-    wstring_convert<codecvt_utf8<wchar_t>, wchar_t> convert;
-#else // WIN32
-    wstring_convert<codecvt_utf8<char16_t>, char16_t> convert;
-#endif // WIN32
-
-    string printable = convert.to_bytes(functionName);
-    printf("    %s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)funcId);
-    return S_OK;
 }

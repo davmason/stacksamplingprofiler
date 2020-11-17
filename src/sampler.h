@@ -5,6 +5,7 @@
 #pragma once
 
 #include <thread>
+#include <cstdio>
 #include "common.h"
 
 class CorProfiler;
@@ -12,14 +13,17 @@ class CorProfiler;
 class Sampler
 {
 private:
+    static constexpr char const *OutputName = "samples.txt";
     std::thread m_workerThread;
     static ManualEvent s_waitEvent;
 
-    static void DoSampling(Sampler *sampler, ICorProfilerInfo10* pProfInfo, CorProfiler *parent);
+    static void DoSampling(Sampler *sampler, ICorProfilerInfo10* pProfInfo, CorProfiler *parent, FILE *outputFile);
 
 protected:
-    ICorProfilerInfo10* pCorProfilerInfo;
-    CorProfiler *pParent;
+    ICorProfilerInfo10* m_pCorProfilerInfo;
+    CorProfiler *m_parent;
+
+    FILE *m_outputFile;
 
     WSTRING GetClassName(ClassID classId);
     WSTRING GetModuleName(ModuleID modId);
@@ -32,7 +36,7 @@ protected:
 
 public:
     Sampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent);
-    virtual ~Sampler() = default;
+    virtual ~Sampler();
 
     void Start();
     void Stop();

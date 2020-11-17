@@ -36,11 +36,11 @@ static HRESULT __stdcall DoStackSnapshotStackSnapShotCallbackWrapper(
 
 bool SuspendRuntimeSampler::BeforeSampleAllThreads()
 {
-    printf("Suspending runtime\n");
-    HRESULT hr = pCorProfilerInfo->SuspendRuntime();
+    fprintf(m_outputFile, "Suspending runtime\n");
+    HRESULT hr = m_pCorProfilerInfo->SuspendRuntime();
     if (FAILED(hr))
     {
-        printf("Error suspending runtime... hr=0x%x \n", hr);
+        fprintf(m_outputFile, "Error suspending runtime... hr=0x%x \n", hr);
         return false;
     }
 
@@ -49,11 +49,11 @@ bool SuspendRuntimeSampler::BeforeSampleAllThreads()
 
 bool SuspendRuntimeSampler::AfterSampleAllThreads()
 {
-    printf("Resuming runtime\n");
-    HRESULT hr = pCorProfilerInfo->ResumeRuntime();
+    fprintf(m_outputFile, "Resuming runtime\n");
+    HRESULT hr = m_pCorProfilerInfo->ResumeRuntime();
     if (FAILED(hr))
     {
-        printf("ResumeRuntime failed with hr=0x%x \n", hr);
+        fprintf(m_outputFile, "ResumeRuntime failed with hr=0x%x \n", hr);
         return false;
     }
 
@@ -62,7 +62,7 @@ bool SuspendRuntimeSampler::AfterSampleAllThreads()
 
 bool SuspendRuntimeSampler::SampleThread(ThreadID threadID)
 {
-   HRESULT hr = pCorProfilerInfo->DoStackSnapshot(threadID,
+   HRESULT hr = m_pCorProfilerInfo->DoStackSnapshot(threadID,
                                                   DoStackSnapshotStackSnapShotCallbackWrapper,
                                                   COR_PRF_SNAPSHOT_REGISTER_CONTEXT,
                                                   (void *)this,
@@ -72,11 +72,11 @@ bool SuspendRuntimeSampler::SampleThread(ThreadID threadID)
     {
         if (hr == E_FAIL)
         {
-            printf("Managed thread id=0x%" PRIx64 " has no managed frames to walk \n", (uint64_t)threadID);
+            fprintf(m_outputFile, "Managed thread id=0x%" PRIx64 " has no managed frames to walk \n", (uint64_t)threadID);
         }
         else
         {
-            printf("DoStackSnapshot for thread id=0x%" PRIx64 " failed with hr=0x%x \n", (uint64_t)threadID, hr);
+            fprintf(m_outputFile, "DoStackSnapshot for thread id=0x%" PRIx64 " failed with hr=0x%x \n", (uint64_t)threadID, hr);
         }
     }
 
@@ -111,6 +111,6 @@ HRESULT SuspendRuntimeSampler::StackSnapshotCallback(FunctionID funcId, UINT_PTR
 #endif // WIN32
 
     string printable = convert.to_bytes(functionName);
-    printf("    %s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)funcId);
+    fprintf(m_outputFile, "    %s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)funcId);
     return S_OK;
 }

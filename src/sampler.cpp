@@ -18,11 +18,11 @@ WSTRING Sampler::GetModuleName(ModuleID modId)
 
     if (modId == NULL)
     {
-        printf("NULL modId passed to GetModuleName\n");
+        fprintf(m_outputFile, "NULL modId passed to GetModuleName\n");
         return WSTR("Unknown");
     }
 
-    HRESULT hr = pCorProfilerInfo->GetModuleInfo(modId,
+    HRESULT hr = m_pCorProfilerInfo->GetModuleInfo(modId,
                                                 NULL,
                                                 STRING_LENGTH,
                                                 &nameLength,
@@ -30,7 +30,7 @@ WSTRING Sampler::GetModuleName(ModuleID modId)
                                                 &assemID);
     if (FAILED(hr))
     {
-        printf("GetModuleInfo failed with hr=0x%x\n", hr);
+        fprintf(m_outputFile, "GetModuleInfo failed with hr=0x%x\n", hr);
         return WSTR("Unknown");
     }
 
@@ -76,11 +76,11 @@ WSTRING Sampler::GetClassName(ClassID classId)
 
     if (classId == NULL)
     {
-        printf("NULL classId passed to GetClassName\n");
+        fprintf(m_outputFile, "NULL classId passed to GetClassName\n");
         return WSTR("Unknown");
     }
 
-    hr = pCorProfilerInfo->GetClassIDInfo2(classId,
+    hr = m_pCorProfilerInfo->GetClassIDInfo2(classId,
                                 &modId,
                                 &classToken,
                                 &parentClassID,
@@ -104,11 +104,11 @@ WSTRING Sampler::GetClassName(ClassID classId)
     }
     else if (FAILED(hr))
     {
-        printf("GetClassIDInfo returned hr=0x%x for classID=0x%" PRIx64 "\n", hr, (uint64_t)classId);
+        fprintf(m_outputFile, "GetClassIDInfo returned hr=0x%x for classID=0x%" PRIx64 "\n", hr, (uint64_t)classId);
         return WSTR("Unknown");
     }
 
-    IMetaDataImport *pMDImport = pParent->GetMetadataForModule(modId);
+    IMetaDataImport *pMDImport = m_parent->GetMetadataForModule(modId);
     if (pMDImport == NULL)
     {
         return WSTR("Unknown");
@@ -124,7 +124,7 @@ WSTRING Sampler::GetClassName(ClassID classId)
                                     NULL);
     if (FAILED(hr))
     {
-        printf("GetTypeDefProps failed with hr=0x%x\n", hr);
+        fprintf(m_outputFile, "GetTypeDefProps failed with hr=0x%x\n", hr);
         return WSTR("Unknown");
     }
 
@@ -168,7 +168,7 @@ WSTRING Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO fra
     ULONG32 nTypeArgs = NULL;
     ClassID typeArgs[SHORT_LENGTH];
 
-    HRESULT hr = pCorProfilerInfo->GetFunctionInfo2(funcID,
+    HRESULT hr = m_pCorProfilerInfo->GetFunctionInfo2(funcID,
                                                    frameInfo,
                                                    &classId,
                                                    &moduleId,
@@ -178,10 +178,10 @@ WSTRING Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO fra
                                                    typeArgs);
     if (FAILED(hr))
     {
-        printf("GetFunctionInfo2 failed with hr=0x%x\n", hr);
+        fprintf(m_outputFile, "GetFunctionInfo2 failed with hr=0x%x\n", hr);
     }
 
-    IMetaDataImport *pMDImport = pParent->GetMetadataForModule(moduleId);
+    IMetaDataImport *pMDImport = m_parent->GetMetadataForModule(moduleId);
     if (pMDImport == NULL)
     {
         return WSTR("Unknown");
@@ -200,7 +200,7 @@ WSTRING Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO fra
                                     NULL);
     if (FAILED(hr))
     {
-        printf("GetMethodProps failed with hr=0x%x\n", hr);
+        fprintf(m_outputFile, "GetMethodProps failed with hr=0x%x\n", hr);
     }
 
     WSTRING name;
@@ -244,7 +244,7 @@ WSTRING Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO fra
 }
 
 // static
-void Sampler::DoSampling(Sampler *sampler, ICorProfilerInfo10 *pProfInfo, CorProfiler *parent)
+void Sampler::DoSampling(Sampler *sampler, ICorProfilerInfo10 *pProfInfo, CorProfiler *parent, FILE *outputFile)
 {
     pProfInfo->InitializeCurrentThread();
 
@@ -264,7 +264,7 @@ void Sampler::DoSampling(Sampler *sampler, ICorProfilerInfo10 *pProfInfo, CorPro
         // are managed callstacks to sample.
         if (!parent->IsRuntimeExecutingManagedCode())
         {
-            printf("Runtime has not started executing managed code yet.\n");
+            fprintf(outputFile, "Runtime has not started executing managed code yet.\n");
             continue;
         }
 
@@ -277,7 +277,7 @@ void Sampler::DoSampling(Sampler *sampler, ICorProfilerInfo10 *pProfInfo, CorPro
         HRESULT hr = pProfInfo->EnumThreads(&threadEnum);
         if (FAILED(hr))
         {
-            printf("Error getting thread enumerator\n");
+            fprintf(outputFile, "Error getting thread enumerator\n");
             continue;
         }
 
@@ -285,11 +285,11 @@ void Sampler::DoSampling(Sampler *sampler, ICorProfilerInfo10 *pProfInfo, CorPro
         ULONG numReturned;
         while ((hr = threadEnum->Next(1, &threadID, &numReturned)) == S_OK)
         {
-            printf("Starting stack walk for managed thread id=0x%" PRIx64 "\n", (uint64_t)threadID);
+            fprintf(outputFile, "Starting stack walk for managed thread id=0x%" PRIx64 "\n", (uint64_t)threadID);
 
             sampler->SampleThread(threadID);
 
-            printf("Ending stack walk for managed thread id=0x%" PRIx64 "\n", (uint64_t)threadID);
+            fprintf(outputFile, "Ending stack walk for managed thread id=0x%" PRIx64 "\n", (uint64_t)threadID);
         }
 
         if (!sampler->AfterSampleAllThreads())
@@ -300,11 +300,18 @@ void Sampler::DoSampling(Sampler *sampler, ICorProfilerInfo10 *pProfInfo, CorPro
 }
 
 Sampler::Sampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
-    m_workerThread(DoSampling, this, pProfInfo, parent),
-    pCorProfilerInfo(pProfInfo),
-    pParent(parent)
+    m_workerThread(),
+    m_pCorProfilerInfo(pProfInfo),
+    m_parent(parent),
+    m_outputFile(fopen(Sampler::OutputName, "w+"))
 {
+    printf("Writing sampler output to \"%s\"\n", Sampler::OutputName);
+    m_workerThread = std::thread(DoSampling, this, pProfInfo, parent, m_outputFile);
+}
 
+Sampler::~Sampler()
+{
+    fclose(m_outputFile);
 }
 
 
