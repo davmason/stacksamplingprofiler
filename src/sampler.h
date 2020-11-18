@@ -7,6 +7,10 @@
 #include <thread>
 #include <cstdio>
 #include <atomic>
+#include <vector>
+#include <utility>
+#include <pthread.h>
+
 #include "common.h"
 
 class CorProfiler;
@@ -17,6 +21,20 @@ enum class ThreadState
     Suspended = 2,
     Dead = 3
 };
+
+
+
+#ifdef __APPLE__
+    typedef uint32_t NativeThreadID;
+#elif __linux__
+    typedef pid_t NativeThreadID;
+#endif
+
+typedef struct
+{
+    pthread_t pThreadID;
+    NativeThreadID threadID;
+} NativeThreadInfo;
 
 class Sampler
 {
@@ -31,7 +49,7 @@ protected:
     ICorProfilerInfo10* m_pCorProfilerInfo;
     CorProfiler *m_parent;
     FILE *m_outputFile;
-    ThreadSafeMap<uintptr_t, pthread_t> m_threadIDMap;
+    ThreadSafeMap<uintptr_t, NativeThreadInfo> m_threadIDMap;
 
     WSTRING GetClassName(ClassID classId);
     WSTRING GetModuleName(ModuleID modId);
@@ -39,7 +57,10 @@ protected:
 
     ThreadState GetThreadState(ThreadID threadID);
 
-    pthread_t GetNativeThreadID(ThreadID threadID);
+    pthread_t GetCurrentPThreadID();
+    pthread_t GetPThreadID(ThreadID threadID);
+    NativeThreadID GetCurrentNativeThreadID();
+    NativeThreadID GetNativeThreadID(ThreadID threadID);
 
     virtual bool BeforeSampleAllThreads() = 0;
     virtual bool AfterSampleAllThreads() = 0;
@@ -53,6 +74,6 @@ public:
     void Start();
     void Stop();
 
-    virtual void ThreadCreated(uintptr_t threadId);
-    virtual void ThreadDestroyed(uintptr_t threadId);
+    virtual void ThreadCreated(ThreadID threadId);
+    virtual void ThreadDestroyed(ThreadID threadId);
 };

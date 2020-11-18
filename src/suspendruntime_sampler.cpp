@@ -2,14 +2,15 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-#include "CorProfiler.h"
-#include "suspendruntime_sampler.h"
 #include <thread>
 #include <cwchar>
 #include <cstdio>
 #include <cinttypes>
 #include <locale>
 #include <codecvt>
+
+#include "CorProfiler.h"
+#include "suspendruntime_sampler.h"
 
 using std::wstring_convert;
 using std::codecvt_utf8;

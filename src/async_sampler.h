@@ -7,6 +7,8 @@
 
 #include <pthread.h>
 #include <array>
+#include <signal.h>
+
 #include "sampler.h"
 
 class AsyncSampler : public Sampler
@@ -17,7 +19,7 @@ private:
 
     std::array<void *, 500> m_stackIPs;
     size_t m_numStackIPs;
-    uint64_t m_stackThreadID;
+    NativeThreadID m_stackThreadID;
 
     static void SignalHandler(int signal, siginfo_t *info, void *unused);
 

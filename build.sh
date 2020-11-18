@@ -3,10 +3,11 @@
 function is_mac()
 {
   case $(uname -s) in
-    DARWIN*)    return 1;;
-    *)          return 0;;
+    Darwin*)    return 0;;
+    *)          return 1;;
   esac
 }
+
 if is_mac; then
     export CC=/usr/bin/clang
     export CXX=/usr/bin/clang++
@@ -16,8 +17,8 @@ if is_mac; then
     export RUNTIME_PATH=~/work/runtime
 else
     # I'm running linux build on docker so the paths change
-    export CC=/usr/bin/clang-9
-    export CXX=/usr/bin/clang++-9
+    export CC=/usr/bin/clang
+    export CXX=/usr/bin/clang++
     export BuildOS=Linux
     profilerExtension="so"
 
@@ -31,11 +32,12 @@ export CORECLR_PATH=$RUNTIME_PATH/src/coreclr
 export CORECLR_BIN=$RUNTIME_PATH/artifacts/bin/coreclr/$BuildOS.$BuildArch.$BuildType
 
 printf '  CORECLR_PATH : %s\n' "$CORECLR_PATH"
+printf '  CORECLR_BIN  : %s\n' "$CORECLR_BIN"
 printf '  BuildOS      : %s\n' "$BuildOS"
 printf '  BuildArch    : %s\n' "$BuildArch"
 printf '  BuildType    : %s\n' "$BuildType"
 
-printf '  Building ...'
+printf '  Building ...\n'
 
 if [ ! -d "bin/" ]; then
     mkdir bin/

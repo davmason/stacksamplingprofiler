@@ -2,9 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-#include "CorProfiler.h"
-#include "async_sampler.h"
-
 #include <signal.h>
 #include <cinttypes>
 #include <locale>
@@ -13,6 +10,10 @@
 #include <execinfo.h>
 #include <fstream>
 #include <iostream>
+#include <boost/stacktrace.hpp>
+
+#include "CorProfiler.h"
+#include "async_sampler.h"
 
 using std::wstring_convert;
 using std::codecvt_utf8;
@@ -25,11 +26,22 @@ AsyncSampler *AsyncSampler::s_instance;
 //static
 void AsyncSampler::SignalHandler(int signal, siginfo_t *info, void *unused)
 {
-    pthread_t threadID = pthread_self();
-    pthread_threadid_np(threadID, &AsyncSampler::Instance()->m_stackThreadID);
+    NativeThreadID nativeThreadID = AsyncSampler::Instance()->GetCurrentNativeThreadID();
+    AsyncSampler::Instance()->m_stackThreadID = nativeThreadID;
 
-    // Save backtrace for later processing
-    AsyncSampler::Instance()->m_numStackIPs = backtrace(AsyncSampler::Instance()->m_stackIPs.data(), AsyncSampler::Instance()->m_stackIPs.size());
+    // // Save backtrace for later processing
+    // AsyncSampler::Instance()->m_numStackIPs = backtrace(AsyncSampler::Instance()->m_stackIPs.data(), AsyncSampler::Instance()->m_stackIPs.size());
+
+    printf("Boost stacktrace:\n");
+    std::cout << boost::stacktrace::stacktrace() << std::endl;
+    // int i = 0;
+    // for (boost::stacktrace::frame frame: st)
+    // {
+    //     AsyncSampler::Instance()->m_stackIPs[i] = (void *)frame.address();
+    //     ++i;
+    // }
+
+    // AsyncSampler::Instance()->m_numStackIPs = i;
 
     s_threadSampledEvent.Signal();
 }
@@ -46,12 +58,11 @@ bool AsyncSampler::AfterSampleAllThreads()
 
 bool AsyncSampler::SampleThread(ThreadID threadID)
 {
-    pthread_t nativeThreadId = GetNativeThreadID(threadID);
+    pthread_t pThreadID = GetPThreadID(threadID);
 
-    uint64_t tid;
-    pthread_threadid_np(nativeThreadId, &tid);
-    fprintf(m_outputFile, "Sending signal to thread %" PRIx64 " state=%d\n", tid, GetThreadState(threadID));
-    int result = pthread_kill(nativeThreadId, SIGUSR2) != 0;
+    fprintf(m_outputFile, "Sending signal to thread %p state=%d\n", (void *)pThreadID, GetThreadState(threadID));
+    fflush(m_outputFile);
+    int result = pthread_kill(pThreadID, SIGUSR2);
     fprintf(m_outputFile, "pthread_kill result=%d\n", result);
 
     // Only sample one thread at a time

@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for more information.
 
 #include "ClassFactory.h"
-#include "CorProfiler.h"
 
 ClassFactory::ClassFactory() : refCount(0)
 {

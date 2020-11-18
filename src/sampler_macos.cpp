@@ -2,11 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-#include "CorProfiler.h"
-#include "sampler.h"
 #include <unistd.h>
 #include <libproc.h>
 #include <cinttypes>
+
+#include "CorProfiler.h"
+#include "sampler.h"
 
 ThreadState Sampler::GetThreadState(ThreadID threadID)
 {
@@ -36,4 +37,10 @@ ThreadState Sampler::GetThreadState(ThreadID threadID)
             fprintf(m_outputFile, "Unknown thread state %u\n", info.pth_run_state);
             return ThreadState::Running;
     }
+}
+
+NativeThreadID Sampler::GetCurrentNativeThreadID()
+{
+    assert(!"unused");
+    return 0;
 }

@@ -1,13 +1,13 @@
 // Copyright (c) .NET Foundation and contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+#include <string>
+#include <assert.h>
 #include "CorProfiler.h"
 #include "corhlpr.h"
 #include "profiler_pal.h"
 #include "async_sampler.h"
 #include "suspendruntime_sampler.h"
-#include <string>
-#include <assert.h>
 
 using std::shared_ptr;
 

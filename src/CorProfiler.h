@@ -7,10 +7,12 @@
 #include <atomic>
 #include <memory>
 #include <vector>
+
+#include "common.h"
+
 #include "cor.h"
 #include "corprof.h"
 #include "sampler.h"
-#include "common.h"
 
 class CorProfiler : public ICorProfilerCallback8
 {

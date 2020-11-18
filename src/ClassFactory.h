@@ -4,8 +4,10 @@
 
 #pragma once
 
-#include "unknwn.h"
 #include <atomic>
+
+#include "CorProfiler.h"
+#include "unknwn.h"
 
 class ClassFactory : public IClassFactory
 {

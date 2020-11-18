@@ -2,11 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-#include "CorProfiler.h"
-#include "sampler.h"
-
+#include <thread>
 #include <cstdio>
 #include <cinttypes>
+
+#include "CorProfiler.h"
+#include "sampler.h"
 
 ManualEvent Sampler::s_waitEvent;
 
@@ -243,19 +244,6 @@ WSTRING Sampler::GetFunctionName(FunctionID funcID, const COR_PRF_FRAME_INFO fra
     return name;
 }
 
-pthread_t Sampler::GetNativeThreadID(ThreadID threadID)
-{
-    auto it = m_threadIDMap.find(threadID);
-    if (it == m_threadIDMap.end())
-    {
-        assert(!"Unexpected thread found");
-        return 0;
-    }
-
-    pthread_t nativeThreadId = it->second;
-    return nativeThreadId;
-}
-
 // static
 void Sampler::DoSampling(Sampler *sampler, ICorProfilerInfo10 *pProfInfo, CorProfiler *parent, FILE *outputFile)
 {
@@ -341,13 +329,46 @@ void Sampler::Stop()
     s_waitEvent.Reset();
 }
 
-void Sampler::ThreadCreated(uintptr_t threadId)
+void Sampler::ThreadCreated(ThreadID threadId)
 {
-    pthread_t tid = pthread_self();
-    m_threadIDMap.insertNew(threadId, tid);
+    NativeThreadInfo nativeThreadInfo;
+    nativeThreadInfo.pThreadID = GetCurrentPThreadID();
+    nativeThreadInfo.threadID = GetCurrentNativeThreadID();
+    m_threadIDMap.insertNew(threadId, nativeThreadInfo);
 }
 
-void Sampler::ThreadDestroyed(uintptr_t threadId)
+void Sampler::ThreadDestroyed(ThreadID threadId)
 {
     // should probably delete it from the map
+}
+
+pthread_t Sampler::GetCurrentPThreadID()
+{
+    return pthread_self();
+}
+
+pthread_t Sampler::GetPThreadID(ThreadID threadID)
+{
+    auto it = m_threadIDMap.find(threadID);
+    if (it == m_threadIDMap.end())
+    {
+        assert(!"Unexpected thread found");
+        return 0;
+    }
+
+    pthread_t pThreadId = it->second.pThreadID;
+    return pThreadId;
+}
+
+NativeThreadID Sampler::GetNativeThreadID(ThreadID threadID)
+{
+    auto it = m_threadIDMap.find(threadID);
+    if (it == m_threadIDMap.end())
+    {
+        assert(!"Unexpected thread found");
+        return 0;
+    }
+
+    NativeThreadID nativeThreadId = it->second.threadID;
+    return nativeThreadId;
 }
