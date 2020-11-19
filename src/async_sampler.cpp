@@ -10,6 +10,7 @@
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
 
+#include <dlfcn.h>
 #include <execinfo.h>
 #include <fstream>
 #include <iostream>
@@ -147,8 +148,17 @@ bool AsyncSampler::SampleThread(ThreadID threadID)
         }
         else
         {
-            fprintf(m_outputFile, "Native frame ip=%" PRIx64 "\n", ip);
-        }
+            const char *nativeName = "Unknown";
+            Dl_info info;
+            int result = dladdr((void *)ip, &info);
+            if (result != 0)
+            {
+                nativeName = info.dli_sname;
+            }
+
+            uintptr_t offset = ip - (uintptr_t)info.dli_saddr;
+            fprintf(m_outputFile, "Native frame \"%s+0x%" PRIx64 "\" ip=%" PRIx64 "\n", nativeName, offset, ip);
+         }
 
         uintptr_t newRbpRaw = ReadPtrSlotFromStack(rbp);
         rbp = MapStackAddressToLocalOffset(newRbpRaw);
