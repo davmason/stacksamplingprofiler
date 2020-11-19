@@ -28,6 +28,7 @@ AsyncSampler *AsyncSampler::s_instance;
 //static
 void AsyncSampler::SignalHandler(int signal, siginfo_t *info, void *unused)
 {
+    // TODO: this takes a lock which is not signal safe
     NativeThreadID nativeThreadID = AsyncSampler::Instance()->GetCurrentNativeThreadID();
     AsyncSampler::Instance()->m_stackThreadID = nativeThreadID;
 
@@ -44,47 +45,12 @@ void AsyncSampler::SignalHandler(int signal, siginfo_t *info, void *unused)
     uintptr_t stackTop = (uintptr_t)sp;
     uintptr_t stackBottom = (uintptr_t)AsyncSampler::Instance()->m_stackBase;
 
-    char buffer[1024];
     unw_word_t rbp;
     unw_get_reg(&cursor, UNW_X86_64_RBP, &rbp);
-
-    // TODO: this needs to go away eventually, right now just using it for debugging purposes
-    unw_word_t ip;
-    unw_word_t tempRBP;
-    while (unw_step(&cursor) > 0)
-    {
-        unw_get_reg(&cursor, UNW_X86_64_RBP, &tempRBP);
-
-        unw_get_reg(&cursor, UNW_REG_IP, &ip);
-        printf("in unw_step, tempRBP=%" PRIx64 " ip=%" PRIx64 "\n", tempRBP, ip);
-        // Managed name
-        FunctionID functionID;
-        HRESULT hr = AsyncSampler::Instance()->m_pCorProfilerInfo->GetFunctionFromIP((uint8_t *)ip, &functionID);
-        if (hr == S_OK)
-        {
-            WSTRING functionName = s_instance->GetFunctionName(functionID, NULL);
-
-    #if WIN32
-            wstring_convert<codecvt_utf8<wchar_t>, wchar_t> convert;
-    #else // WIN32
-            wstring_convert<codecvt_utf8<char16_t>, char16_t> convert;
-    #endif // WIN32
-
-            string printable = convert.to_bytes(functionName);
-            printf("%s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)functionID);
-
-        }
-        else
-        {
-            unw_get_proc_name(&cursor, buffer, 1024, NULL);
-            printf("Libunwind saw frame %s\n", buffer);
-        }
-    }
 
     AsyncSampler::Instance()->m_firstRBP = (uintptr_t)rbp;
     uintptr_t stackSize = stackBottom - stackTop;
 
-    printf("stackSize=%" PRIx64 " stackBottom=%" PRIx64 " stackTop=%" PRIx64 " rbp=%" PRIx64 "\n", stackSize, stackBottom, stackTop, (uintptr_t)rbp);
     uintptr_t startIndex = 0;
     if (stackSize >= AsyncSampler::Instance()->m_stack.size())
     {
@@ -100,8 +66,7 @@ void AsyncSampler::SignalHandler(int signal, siginfo_t *info, void *unused)
 
     AsyncSampler::Instance()->m_startIndex = startIndex;
 
-    printf("In signal handler, stack@sp=%u stack@bottom=%u\n", *((uint8_t *)sp), *((uint8_t *)stackBottom));
-
+    // TODO: mutex use is not signal safe
     s_threadSampledEvent.Signal();
 }
 
@@ -143,6 +108,11 @@ bool AsyncSampler::SampleThread(ThreadID threadID)
 {
     pthread_t pThreadID = GetPThreadID(threadID);
     m_stackBase = (uintptr_t)GetStackBase(threadID);
+    if (m_stackBase == 0)
+    {
+        fprintf(m_outputFile, "Don't know stack base for thread, skipping...\n");
+        return false;
+    }
 
     fprintf(m_outputFile, "Sending signal to thread %p state=%d\n", (void *)pThreadID, GetThreadState(threadID));
     fflush(m_outputFile);
@@ -152,9 +122,7 @@ bool AsyncSampler::SampleThread(ThreadID threadID)
     // Only sample one thread at a time
     s_threadSampledEvent.Wait();
 
-    printf("Out of signal handler, stack@sp=%u stack@bottom=%u\n", m_stack[m_startIndex], m_stack[m_stack.size() - 1]);
-
-    printf("starting manual RBP stack unwind...\n");
+    fprintf(m_outputFile, "starting manual RBP stack unwind...\n");
 
     uintptr_t rbp = MapStackAddressToLocalOffset(m_firstRBP);
     while (true)
@@ -174,19 +142,19 @@ bool AsyncSampler::SampleThread(ThreadID threadID)
     #endif // WIN32
 
             string printable = convert.to_bytes(functionName);
-            printf("%s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)functionID);
+            fprintf(m_outputFile, "%s (funcId=0x%" PRIx64 ")\n", printable.c_str(), (uint64_t)functionID);
 
         }
         else
         {
-            printf("Native frame ip=%" PRIx64 "\n", ip);
+            fprintf(m_outputFile, "Native frame ip=%" PRIx64 "\n", ip);
         }
 
         uintptr_t newRbpRaw = ReadPtrSlotFromStack(rbp);
         rbp = MapStackAddressToLocalOffset(newRbpRaw);
         if (rbp < m_startIndex || rbp >= m_stack.size())
         {
-            printf("done, rbp=%" PRIx64 "\n", rbp);
+            fprintf(m_outputFile, "done, rbp=%" PRIx64 "\n", rbp);
             break;
         }
     }

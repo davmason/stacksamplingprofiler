@@ -41,6 +41,11 @@ ThreadState Sampler::GetThreadState(ThreadID threadID)
 
 NativeThreadID Sampler::GetCurrentNativeThreadID()
 {
-    assert(!"unused");
-    return 0;
+    return GetCurrentPThreadID();
+}
+
+void *Sampler::GetCurrentThreadStackBase()
+{
+    void *stackAddr = pthread_get_stackaddr_np(pthread_self());
+    return stackAddr;
 }

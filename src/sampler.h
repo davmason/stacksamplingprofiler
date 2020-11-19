@@ -25,7 +25,7 @@ enum class ThreadState
 
 
 #ifdef __APPLE__
-    typedef uint32_t NativeThreadID;
+    typedef pthread_t NativeThreadID;
 #elif __linux__
     typedef pid_t NativeThreadID;
 #endif
@@ -62,7 +62,9 @@ protected:
     pthread_t GetPThreadID(ThreadID threadID);
     NativeThreadID GetCurrentNativeThreadID();
     NativeThreadID GetNativeThreadID(ThreadID threadID);
-    void * GetStackBase(ThreadID threadID);
+    void *GetStackBase(ThreadID threadID);
+    void *GetCurrentThreadStackBase();
+
 
     virtual bool BeforeSampleAllThreads() = 0;
     virtual bool AfterSampleAllThreads() = 0;

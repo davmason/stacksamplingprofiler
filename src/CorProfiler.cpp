@@ -55,7 +55,7 @@ HRESULT STDMETHODCALLTYPE CorProfiler::Initialize(IUnknown *pICorProfilerInfoUnk
     }
     else
     {
-        printf("Using synchronouse stack sampling\n");
+        printf("Using synchronous stack sampling\n");
 
         sampler = shared_ptr<Sampler>(new SuspendRuntimeSampler(corProfilerInfo, this));
     }

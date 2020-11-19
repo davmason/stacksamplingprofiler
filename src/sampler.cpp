@@ -334,20 +334,7 @@ void Sampler::ThreadCreated(ThreadID threadId)
     NativeThreadInfo nativeThreadInfo;
     nativeThreadInfo.pThreadID = GetCurrentPThreadID();
     nativeThreadInfo.threadID = GetCurrentNativeThreadID();
-    nativeThreadInfo.stackBase = nullptr;
-
-    bool success;
-    pthread_attr_t attrs;
-    if( pthread_getattr_np( nativeThreadInfo.pThreadID, &attrs ) == 0 )
-    {
-        void   *stackAddr;
-        size_t  stackSize;
-        if( pthread_attr_getstack( &attrs, &stackAddr, &stackSize ) == 0 )
-        {
-            printf("Got stack stackAddr=%p stackSize=%zu\n", stackAddr, stackSize);
-            nativeThreadInfo.stackBase = (void *)((uintptr_t)stackAddr + (stackSize - 1));
-        }
-    }
+    nativeThreadInfo.stackBase = GetCurrentThreadStackBase();
 
     m_threadIDMap.insertNew(threadId, nativeThreadInfo);
 }

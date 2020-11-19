@@ -69,14 +69,31 @@ ThreadState Sampler::GetThreadState(ThreadID threadID)
     // string line;
     // while (getline(threadState, line))
     // {
-    //     printf("%s\n", line.c_str());
+    //     fprintf(m_outputFile, "%s\n", line.c_str());
     // }
 
     return ThreadState::Running;
 }
 
-// TODO: remove duplicate code
 NativeThreadID Sampler::GetCurrentNativeThreadID()
 {
     return gettid();
+}
+
+void *Sampler::GetCurrentThreadStackBase()
+{
+    bool success;
+    pthread_attr_t attrs;
+    if( pthread_getattr_np( pthread_self(), &attrs ) == 0 )
+    {
+        void   *stackAddr;
+        size_t  stackSize;
+        if( pthread_attr_getstack( &attrs, &stackAddr, &stackSize ) == 0 )
+        {
+            fprintf(m_outputFile, "Got stack stackAddr=%p stackSize=%zu\n", stackAddr, stackSize);
+            return (void *)((uintptr_t)stackAddr + (stackSize - 1));
+        }
+    }
+
+    return nullptr;
 }

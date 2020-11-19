@@ -88,7 +88,7 @@ bool SuspendRuntimeSampler::SampleThread(ThreadID threadID)
 SuspendRuntimeSampler::SuspendRuntimeSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
     Sampler(pProfInfo, parent)
 {
-    printf("Using stop the world sampling.\n");
+
 }
 
 HRESULT SuspendRuntimeSampler::StackSnapshotCallback(FunctionID funcId, UINT_PTR ip, COR_PRF_FRAME_INFO frameInfo, ULONG32 contextSize, BYTE context[], void* clientData)
