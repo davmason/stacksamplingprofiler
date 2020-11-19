@@ -34,6 +34,7 @@ typedef struct
 {
     pthread_t pThreadID;
     NativeThreadID threadID;
+    void *stackBase;
 } NativeThreadInfo;
 
 class Sampler
@@ -61,6 +62,7 @@ protected:
     pthread_t GetPThreadID(ThreadID threadID);
     NativeThreadID GetCurrentNativeThreadID();
     NativeThreadID GetNativeThreadID(ThreadID threadID);
+    void * GetStackBase(ThreadID threadID);
 
     virtual bool BeforeSampleAllThreads() = 0;
     virtual bool AfterSampleAllThreads() = 0;

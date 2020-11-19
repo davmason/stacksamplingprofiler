@@ -20,7 +20,7 @@ endif(APPLE)
 
 if (UNIX AND NOT APPLE)
     set(BASE_SOURCES src/sampler_linux.cpp)
-    add_link_options(--no-undefined -lpthread -ldl)
+    add_link_options(--no-undefined -lpthread -lunwind)
 endif(UNIX AND NOT APPLE)
 
 if (WIN32)
