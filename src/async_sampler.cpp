@@ -29,9 +29,11 @@ AsyncSampler *AsyncSampler::s_instance;
 //static
 void AsyncSampler::SignalHandler(int signal, siginfo_t *info, void *unused)
 {
-    // TODO: this takes a lock which is not signal safe
-    NativeThreadID nativeThreadID = AsyncSampler::Instance()->GetCurrentNativeThreadID();
-    AsyncSampler::Instance()->m_stackThreadID = nativeThreadID;
+    // What is this signal handler doing? It is copying the entire stack off for later processing.
+    // The stack base is precalculated and stored at thread creation time, since the functions
+    // for querying the stack base are not signal safe. This signal handler is not reentrancy safe,
+    // pains have been taken to synchronize with the sampling thread so it should never be called
+    // in a reentrant manner.
 
     unw_context_t context;
     unw_getcontext(&context);
@@ -39,24 +41,36 @@ void AsyncSampler::SignalHandler(int signal, siginfo_t *info, void *unused)
     unw_cursor_t cursor;
     unw_init_local(&cursor, &context);
 
-    // Get current stack
+    // Get current stack pointer for the top bound of what to copy
     unw_word_t sp;
     unw_get_reg(&cursor, UNW_REG_SP, &sp);
 
+    // This may cause confusion, since as developers we talk about the top of the stack being
+    // the stack associated with the leaf functions, but since the stack grows downwards the
+    // top is actually the lowest address and the bottom is the highest.
     uintptr_t stackTop = (uintptr_t)sp;
     uintptr_t stackBottom = (uintptr_t)AsyncSampler::Instance()->m_stackBase;
 
+    // Get current RBP as the value to start the stack walking from. If setting up libunwind
+    // proves to be too slow it would be fairly trivial to write an assembly stub that captures it.
     unw_word_t rbp;
     unw_get_reg(&cursor, UNW_X86_64_RBP, &rbp);
 
     AsyncSampler::Instance()->m_firstRBP = (uintptr_t)rbp;
     uintptr_t stackSize = stackBottom - stackTop;
 
+    // Copy the stack off, limiting to the top 32kb if larger than that
     uintptr_t startIndex = 0;
     if (stackSize >= AsyncSampler::Instance()->m_stack.size())
     {
+        printf("here! stackSize=%" PRIu64 " array size=%zu\n", stackSize, AsyncSampler::Instance()->m_stack.size());
         // Copy the top 32k since that's all we have room for
         memcpy((void *)AsyncSampler::Instance()->m_stack.data(), (void *)stackTop, AsyncSampler::Instance()->m_stack.size());
+
+        // This is a little bit of a hack, but makes stack relocation later easier
+        // TODO: should actually test this to make sure it works as expected.
+        uintptr_t stackDiff = stackSize - AsyncSampler::Instance()->m_stack.size();
+        AsyncSampler::Instance()->m_stackBase = stackBottom - stackDiff;
     }
     else
     {
@@ -83,15 +97,17 @@ bool AsyncSampler::AfterSampleAllThreads()
 
 uintptr_t AsyncSampler::MapStackAddressToLocalOffset(uintptr_t address)
 {
-    // Want to map the memory address to the index within our m_stack array
-    assert(m_stackBase > address);
+    // All of the RBPs reference the stack, so when we copied it the stack all of the
+    // addresses are still pointing at the old stack. This function does a basic fixup
+    // by mapping the old stack value to an index in to the m_stack array.
+
     uintptr_t offsetFromStackBase = m_stackBase - address;
     return m_stack.size() - offsetFromStackBase;
 }
 
 uintptr_t AsyncSampler::ReadPtrSlotFromStack(uintptr_t offset)
 {
-    // This makes so many assumptions. Endian-ness, 64 bit architecture, etc
+    // This makes so many assumptions. Endian-ness, 64 bit architecture, etc.
     Int64Parser parser;
     parser.eighth   = m_stack[offset + 7];
     parser.seventh  = m_stack[offset + 6];
@@ -107,6 +123,8 @@ uintptr_t AsyncSampler::ReadPtrSlotFromStack(uintptr_t offset)
 
 bool AsyncSampler::SampleThread(ThreadID threadID)
 {
+    // m_stackBase needs to be pre-set so the signal handler can access them without
+    // going through the locks in the ThreadSafeMap class.
     pthread_t pThreadID = GetPThreadID(threadID);
     m_stackBase = (uintptr_t)GetStackBase(threadID);
     if (m_stackBase == 0)
@@ -115,6 +133,8 @@ bool AsyncSampler::SampleThread(ThreadID threadID)
         return false;
     }
 
+    // Send the signal, currently using SIGUSR2 but before using in production should verify it's safe
+    // and nothing else uses it.
     fprintf(m_outputFile, "Sending signal to thread %p state=%d\n", (void *)pThreadID, GetThreadState(threadID));
     fflush(m_outputFile);
     int result = pthread_kill(pThreadID, SIGUSR2);
@@ -128,12 +148,23 @@ bool AsyncSampler::SampleThread(ThreadID threadID)
     uintptr_t rbp = MapStackAddressToLocalOffset(m_firstRBP);
     while (true)
     {
+        // This sampler only works for AMD64 currently, and works by walking the RBP chain.
+        // RBP points to a stack slot that has the previous functions RBP in it, RBP+1 (or +8 here
+        // since m_stack is in bytes) contains the IP to return to.
+        //
+        // The algorithm is:
+        //      rbp = *rbp
+        //      ip = *(rbp + 8)
+        //
+        // Then we can map the IP to either managed or native code.
+
         uintptr_t ipOffset = rbp + 8;
         uintptr_t ip = ReadPtrSlotFromStack(ipOffset);
         FunctionID functionID;
         HRESULT hr = m_pCorProfilerInfo->GetFunctionFromIP((uint8_t *)ip, &functionID);
         if (hr == S_OK)
         {
+            // We found managed code, look up the function name to print it out.
             WSTRING functionName = s_instance->GetFunctionName(functionID, NULL);
 
     #if WIN32
@@ -148,6 +179,10 @@ bool AsyncSampler::SampleThread(ThreadID threadID)
         }
         else
         {
+            // If GetFunctionFromIP returned an error, we are assuming it means native code. Here
+            // we are borrowing dladdr to look up symbolic names, but if native code doesn't matter
+            // to your profiler then feel free to omit this and skip to the next frame to save some
+            // perf cost.
             const char *nativeName = "Unknown";
             Dl_info info;
             int result = dladdr((void *)ip, &info);
@@ -177,14 +212,12 @@ AsyncSampler::AsyncSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
     m_stack(),
     m_stackBase(0),
     m_firstRBP(0),
-    m_startIndex(0),
-    m_stackThreadID(0)
+    m_startIndex(0)
 {
     s_instance = this;
 
     struct sigaction sampleAction;
     sampleAction.sa_flags = 0;
-    // sampleAction.sa_handler = AsyncSampler::SignalHandler;
     sampleAction.sa_sigaction = AsyncSampler::SignalHandler;
     sampleAction.sa_flags |= SA_SIGINFO;
     sigemptyset(&sampleAction.sa_mask);
@@ -192,5 +225,4 @@ AsyncSampler::AsyncSampler(ICorProfilerInfo10* pProfInfo, CorProfiler *parent) :
 
     struct sigaction oldAction;
     int result = sigaction(SIGUSR2, &sampleAction, &oldAction);
-    // fprintf(m_outputFile, "sigaction result=%d\n", result);
 }

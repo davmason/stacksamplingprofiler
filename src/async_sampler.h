@@ -34,11 +34,10 @@ private:
     static AutoEvent s_threadSampledEvent;
     static AsyncSampler *s_instance;
 
-    std::array<uint8_t, 32768> m_stack;
-    uintptr_t m_stackBase;
-    uintptr_t m_firstRBP;
-    uintptr_t m_startIndex;
-    NativeThreadID m_stackThreadID;
+    std::array<volatile uint8_t, 32768> m_stack;
+    volatile uintptr_t m_stackBase;
+    volatile uintptr_t m_firstRBP;
+    volatile uintptr_t m_startIndex;
 
     static void SignalHandler(int signal, siginfo_t *info, void *unused);
 

@@ -41,6 +41,8 @@ ThreadState Sampler::GetThreadState(ThreadID threadID)
 
     fprintf(m_outputFile, "thread state char=%c\n", ch);
 
+    // TODO: should verify that this is completely trustworthy. I did some basic investigation and it seems
+    // to map, i.e. any threads marked as ThreadState::Suspended seemed to be actually suspended.
     switch(ch)
     {
         case 'R': // Running
@@ -66,11 +68,6 @@ ThreadState Sampler::GetThreadState(ThreadID threadID)
             fprintf(m_outputFile, "Saw invalid character in thread state %c\n", ch);
             return ThreadState::Running;
     }
-    // string line;
-    // while (getline(threadState, line))
-    // {
-    //     fprintf(m_outputFile, "%s\n", line.c_str());
-    // }
 
     return ThreadState::Running;
 }

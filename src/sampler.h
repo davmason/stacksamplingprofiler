@@ -22,8 +22,6 @@ enum class ThreadState
     Dead = 3
 };
 
-
-
 #ifdef __APPLE__
     typedef pthread_t NativeThreadID;
 #elif __linux__
@@ -58,6 +56,9 @@ protected:
 
     ThreadState GetThreadState(ThreadID threadID);
 
+    // On linux the pthread APIs uses a pthread_t identifier, but the /proc/self/task/[tid] data
+    // uses a different type of tid unrelated to pthread_t to represent threads. On macos we can use
+    // pthread_t for everything so both NativeThreadID and PThreadID are the same on macos.
     pthread_t GetCurrentPThreadID();
     pthread_t GetPThreadID(ThreadID threadID);
     NativeThreadID GetCurrentNativeThreadID();

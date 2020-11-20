@@ -36,4 +36,7 @@ bin/*
 webapp/obj/*
 webapp/bin/*
 
+sampleapp/obj/*
+sampleapp/bin/*
+
 repro/*
